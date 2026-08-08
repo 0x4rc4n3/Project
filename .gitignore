@@ -1,0 +1,15 @@
+# Secrets — never commit these
+.env
+*.pem
+*.key
+venv/
+node_modules/
+__pycache__/
+*.pyc
+__pycache__/
+.pytest_cache/
+*.db
+venv/
+node_modules/
+test_keys/
+certs/

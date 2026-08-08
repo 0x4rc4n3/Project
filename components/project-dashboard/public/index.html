@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScatterID | System Control & Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <!-- Load Mermaid.js for architecture diagrams -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <div class="glow-bg"></div>
+  
+  <!-- Sidebar Navigation -->
+  <nav class="sidebar">
+    <div class="logo">
+      <span class="logo-icon">💠</span>
+      <span class="logo-text">ScatterID</span>
+      <span class="badge badge-primary">v1.0</span>
+    </div>
+    
+    <ul class="nav-links">
+      <li><a href="#" class="nav-link active" data-tab="tab-overview">📊 Health Status</a></li>
+      <li><a href="#" class="nav-link" data-tab="tab-db">🗄 Ledger & DB Explorer</a></li>
+      <li><a href="#" class="nav-link" data-tab="tab-diagnostics">🧪 Diagnostics Console</a></li>
+      <li><a href="#" class="nav-link" data-tab="tab-architecture">🗺 Interactive Maps</a></li>
+      <li><a href="#" class="nav-link" data-tab="tab-progress">📝 Project Progress</a></li>
+    </ul>
+
+    <div class="sidebar-footer">
+      <div class="system-time">
+        <span class="dot active"></span> Local Node Active
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content Container -->
+  <main class="main-content">
+    
+    <!-- Top Stats / Quick Indicators -->
+    <header class="main-header">
+      <div>
+        <h1 id="page-title">Health Status</h1>
+        <p class="subtitle">Real-time status check of ScatterID modules and Hyperledger Fabric</p>
+      </div>
+      <button class="btn btn-primary" id="refresh-all-btn">🔄 Refresh Dashboard</button>
+    </header>
+
+    <!-- Tab Content: Health & Status -->
+    <section id="tab-overview" class="tab-pane active">
+      <div class="grid grid-3">
+        <!-- API Status Card -->
+        <div class="card glass">
+          <div class="card-header">
+            <h3>Backend API Services</h3>
+            <span class="indicator-icon">🔌</span>
+          </div>
+          <div class="status-list">
+            <div class="status-item">
+              <span>Verification API (Port 3000)</span>
+              <span class="status-badge" id="status-api">Checking...</span>
+            </div>
+            <div class="status-item">
+              <span>Crypto Service (Port 5001)</span>
+              <span class="status-badge" id="status-crypto">Checking...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Blockchain Status Card -->
+        <div class="card glass">
+          <div class="card-header">
+            <h3>Fabric Blockchain Nodes</h3>
+            <span class="indicator-icon">⛓</span>
+          </div>
+          <div class="status-list">
+            <div class="status-item">
+              <span>Raft Orderer (Port 7050)</span>
+              <span class="status-badge" id="status-orderer">Checking...</span>
+            </div>
+            <div class="status-item">
+              <span>Issuer Peer (Port 7051)</span>
+              <span class="status-badge" id="status-issuer-peer">Checking...</span>
+            </div>
+            <div class="status-item">
+              <span>Verifier Peer (Port 8051)</span>
+              <span class="status-badge" id="status-verifier-peer">Checking...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Environment Card -->
+        <div class="card glass">
+          <div class="card-header">
+            <h3>Node Environment</h3>
+            <span class="indicator-icon">💻</span>
+          </div>
+          <div class="status-list">
+            <div class="status-item">
+              <span>Operating System</span>
+              <span class="status-val">Linux (Kali)</span>
+            </div>
+            <div class="status-item">
+              <span>Fabric Channel</span>
+              <span class="status-val text-accent">scatterid-channel</span>
+            </div>
+            <div class="status-item">
+              <span>Crypto Algorithm</span>
+              <span class="status-val text-primary">ML-DSA-65 / SHA3-256</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Logs Section -->
+      <div class="card glass log-card">
+        <div class="card-header">
+          <h3>Container Logs Monitor</h3>
+          <div class="log-controls">
+            <select id="container-log-select">
+              <option value="peer0.issuer.scatterid.com">peer0.issuer.scatterid.com</option>
+              <option value="peer0.verifier.scatterid.com">peer0.verifier.scatterid.com</option>
+              <option value="orderer.scatterid.com">orderer.scatterid.com</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" id="refresh-logs-btn">Fetch Logs</button>
+          </div>
+        </div>
+        <div class="log-container">
+          <pre id="log-output">Select a container and click 'Fetch Logs'</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab Content: DB Explorer -->
+    <section id="tab-db" class="tab-pane">
+      <div class="card glass">
+        <div class="card-header">
+          <h3>Issued Credentials & Blockchain Anchors</h3>
+          <p class="subtitle">Direct visualization of SQLite DB records synchronized with Hyperledger Fabric State</p>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Credential ID</th>
+                <th>Data Hash (SHA3-256)</th>
+                <th>PQC Algorithm</th>
+                <th>Anchor Tx ID</th>
+                <th>Status</th>
+                <th>Issued At</th>
+              </tr>
+            </thead>
+            <tbody id="db-table-body">
+              <tr>
+                <td colspan="6" class="text-center">Loading database records...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab Content: Diagnostics Console -->
+    <section id="tab-diagnostics" class="tab-pane">
+      <div class="grid grid-2-1">
+        <div class="card glass">
+          <div class="card-header">
+            <h3>E2E Smoke Tester & Verification API Audit</h3>
+            <p class="subtitle">Triggers an end-to-end flow: Issue -> Shard -> PQC Sign -> Anchor to Fabric -> Query status -> Verify</p>
+          </div>
+          
+          <div class="test-form">
+            <div class="form-group">
+              <label>E2E Diagnostic Payload (Claim JSON)</label>
+              <pre class="json-payload" id="diagnostic-payload-preview">{
+  "student": "Diagnostic Test User",
+  "degree": "Master of Science in Cybersecurity",
+  "timestamp": "2026-07-08T14:50:00Z"
+}</pre>
+            </div>
+            <button class="btn btn-primary" id="run-diagnostic-btn">⚡ Run End-to-End Diagnostics</button>
+          </div>
+
+          <div class="console-box">
+            <div class="console-header">
+              <span>Diagnostics Terminal Output</span>
+              <span class="cursor">_</span>
+            </div>
+            <div class="console-body" id="diagnostics-console">
+              Waiting for user to trigger diagnostic run...
+            </div>
+          </div>
+        </div>
+
+        <div class="card glass">
+          <div class="card-header">
+            <h3>E2E Verification Logic Diagram</h3>
+          </div>
+          <div class="verification-steps">
+            <div class="v-step">
+              <div class="step-num">1</div>
+              <div>
+                <strong>Claim Packaged</strong>
+                <p>Hash created (SHA3-256), signed with ML-DSA-65.</p>
+              </div>
+            </div>
+            <div class="v-step">
+              <div class="step-num">2</div>
+              <div>
+                <strong>Shamir Secret Splitting</strong>
+                <p>Split into k=3, n=5 shards (coefficients hex encoded).</p>
+              </div>
+            </div>
+            <div class="v-step">
+              <div class="step-num">3</div>
+              <div>
+                <strong>Fabric Anchor</strong>
+                <p>Proof records (ID, hash, issuer) submitted to Ledger via chaincode.</p>
+              </div>
+            </div>
+            <div class="v-step">
+              <div class="step-num">4</div>
+              <div>
+                <strong>Server-side verify</strong>
+                <p>Verify ledger anchors, validate shard integrity, reconstruct raw claim.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab Content: Architecture Map -->
+    <section id="tab-architecture" class="tab-pane">
+      <div class="card glass">
+        <div class="card-header">
+          <h3>ScatterID Infrastructure Visual Map</h3>
+          <p class="subtitle">Phased multi-node architecture layout including Post-Quantum microservice and SSS key boundaries</p>
+        </div>
+        
+        <div class="mermaid-container">
+          <pre class="mermaid" id="mermaid-graph">
+graph TD
+    classDef default fill:#13151a,stroke:#3b3f46,stroke-width:1px,color:#d8dee9;
+    classDef green fill:#0d2818,stroke:#0f5132,stroke-width:1.5px,color:#75b798;
+    classDef cyan fill:#001d29,stroke:#00f2fe,stroke-width:1.5px,color:#00f2fe;
+    classDef purple fill:#190e2b,stroke:#a18cd1,stroke-width:1.5px,color:#fbc2eb;
+    classDef amber fill:#241300,stroke:#f59e0b,stroke-width:1.5px,color:#f59e0b;
+
+    subgraph ClientSDK ["Client Context"]
+        SDK["SDK / client.js"]:::default
+    end
+
+    subgraph API ["Express verification-api (Port 3000)"]
+        Server["Express Server"]:::cyan
+        DB["SQLite DB: credentials.db"]:::cyan
+        FabricClient["Fabric Gateway Client"]:::cyan
+    end
+
+    subgraph Crypto ["Flask crypto-service (Port 5001)"]
+        Flask["Flask Server"]:::purple
+        LibOQS["liboqs-python (ML-DSA-65)"]:::purple
+        SSLib["sslib (Shamir k=3/n=5)"]:::purple
+        KMS["KMS Module"]:::purple
+    end
+
+    subgraph KMSStore ["KMS Private Key Storage"]
+        Vault["HashiCorp Vault (Port 8200)"]:::amber
+    end
+
+    subgraph Fabric ["Custom Fabric network (scatterid-channel)"]
+        Orderer["orderer.scatterid.com (Port 7050)"]:::green
+        PeerIssuer["peer0.issuer.scatterid.com (Port 7051)"]:::green
+        PeerVerifier["peer0.verifier.scatterid.com (Port 8051)"]:::green
+        CC["scatterproof.go (Chaincode)"]:::green
+    end
+
+    SDK -->|"1. POST /issue"| Server
+    Server -->|"2. POST /package (HTTPS + Bearer API Key)"| Flask
+    
+    Flask -->|"KMS Reconstruct Key"| KMS
+    KMS <-->|"Load Key"| Vault
+
+    Flask -->|"Signs Credential"| LibOQS
+    Flask -->|"Splits into Shards"| SSLib
+    Flask -->|"Returns JSON"| Server
+    
+    Server -->|"3. Save Shard Ref & Hash"| DB
+    Server -->|"4. AnchorProof"| FabricClient
+    FabricClient -->|"gRPC Mutual TLS"| PeerIssuer
+    PeerIssuer -->|"Commit to Ledger"| Orderer
+    PeerVerifier -->|"Sync State"| Orderer
+    PeerIssuer -->|"Executes CC"| CC
+    PeerVerifier -->|"Executes CC"| CC
+
+    SDK -->|"5. POST /verify"| Server
+    Server -->|"6. Query Ledger / Verify"| FabricClient
+    FabricClient -->|"Read Proof"| PeerVerifier
+    Server -->|"7. POST /unpackage (HTTPS + Bearer API Key)"| Flask
+    Flask -->|"Reconstructs Credential"| SSLib
+    Flask -->|"Verifies PQC Sig"| LibOQS
+    Server -->|"Returns Valid status"| SDK
+          </pre>
+        </div>
+      </div>
+
+
+
+      <!-- Cryptographic Inventory -->
+      <div class="card glass">
+        <div class="card-header">
+          <h3>Cryptographic Inventory & Security Objectives</h3>
+          <p class="subtitle">Detailed breakdown of cryptographic mechanisms, locations, and security rationale</p>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Mechanism</th>
+                <th>Location</th>
+                <th>Objective & Rationale</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="badge badge-primary">ML-DSA-65</span><br><small>Post-Quantum Signature</small></td>
+                <td>
+                  <code>crypto-service/pq_sign.py</code><br>
+                  <code>fragmentation-module/src/pq_sign.py</code>
+                </td>
+                <td>
+                  <strong>Authenticity & Non-Repudiation (Quantum-Resistant):</strong><br>
+                  FIPS 204 approved signature algorithm that ensures credential integrity and issuer authenticity remain secure even against future quantum computers running Shor's algorithm.
+                </td>
+              </tr>
+              <tr>
+                <td><span class="badge badge-primary">Shamir's Secret Sharing (3-of-5)</span><br><small>Symmetric Sharding</small></td>
+                <td>
+                  <code>crypto-service/shamir.py</code><br>
+                  <code>verification-api/src/routes/issue.js</code>
+                </td>
+                <td>
+                  <strong>Zero Single Point of Compromise:</strong><br>
+                  Splits the signed credential payload into 5 shares. A verifier needs 3 shares to reconstruct it, ensuring no single database contains a complete stealable copy of any credential.
+                </td>
+              </tr>
+              <tr>
+                <td><span class="badge badge-primary">HashiCorp Vault KV</span><br><small>Secrets Manager</small></td>
+                <td>
+                  <code>crypto-service/kms.py</code>
+                </td>
+                <td>
+                  <strong>Centralized Private Key Protection:</strong><br>
+                  Stores the issuer's ML-DSA-65 private signing key directly in Vault's encrypted storage. The key is retrieved directly over authenticated API calls at startup and held strictly in-memory. No keys are ever written to disk or environment variables.
+                </td>
+              </tr>
+              <tr>
+                <td><span class="badge badge-primary">SHA3-256</span><br><small>Quantum-Resistant Hash</small></td>
+                <td>
+                  <code>crypto-service/interface.py</code><br>
+                  <code>verification-api/src/routes/verify.js</code>
+                </td>
+                <td>
+                  <strong>Data Integrity & Verification:</strong><br>
+                  Provides one-way hashing of claims and shares. The blockchain stores the anchor hash to detect tamper attempts, and database shares are matched against their pre-computed hashes.
+                </td>
+              </tr>
+              <tr>
+                <td><span class="badge badge-primary">TLS / HTTPS</span><br><small>Secure Transport</small></td>
+                <td>
+                  <code>crypto-service/app.py</code> (Port 5001)<br>
+                  <code>verification-api/src/chain/fabric.js</code>
+                </td>
+                <td>
+                  <strong>Confidentiality in Transit:</strong><br>
+                  Encrypts the microservice communications. Node-to-Python requests run over HTTPS, and Peer-to-Orderer/Client gRPC calls leverage mTLS certificates.
+                </td>
+              </tr>
+              <tr>
+                <td><span class="badge badge-primary">Bearer API Key</span><br><small>Access Control</small></td>
+                <td>
+                  <code>crypto-service/app.py</code><br>
+                  <code>verification-api/src/routes/issue.js</code>
+                </td>
+                <td>
+                  <strong>Authorization & Isolation:</strong><br>
+                  Protects the internal cryptographic microservice endpoints from unauthorized local or external invocation.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab Content: Project Progress -->
+    <section id="tab-progress" class="tab-pane">
+      <div class="grid grid-2-1">
+        <div class="card glass">
+          <div class="card-header">
+            <h3>Live Progress & Learning Roadmap (Progress.md)</h3>
+            <p class="subtitle">Continuous memory state parsed directly from file system</p>
+          </div>
+          <div class="markdown-reader" id="progress-md-reader">
+            Loading Progress Log...
+          </div>
+        </div>
+
+        <div class="card glass">
+          <div class="card-header">
+            <h3>Architectural Boundaries</h3>
+          </div>
+          <div class="boundary-list">
+            <div class="boundary-item">
+              <h4>Boundary 1: Node API ↔ Python Crypto</h4>
+              <p>HTTPS over localhost:5001. Authenticated via API key, shards hex-encoded for JSON serialization.</p>
+            </div>
+            <div class="boundary-item">
+              <h4>Boundary 2: Node API ↔ Fabric Gateway</h4>
+              <p>gRPC connections with TLS certificates. Identity authentication via IssuerMSP.</p>
+            </div>
+            <div class="boundary-item">
+              <h4>Boundary 3: Peer ↔ Orderer ↔ Peer</h4>
+              <p>Raft Consensus inside Docker bridge network (`scatterid_net`) using mutual TLS.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
