@@ -252,7 +252,7 @@ app.get('/api/progress', async (req, res) => {
 });
 
 // API: Multi-Node Shard Integrity Inspector
-app.get('/api/shards/integrity', (req, res) => {
+app.get('/api/shards/integrity', async (req, res) => {
   try {
     const candidateDirs = [
       process.env.DB_DIR || '/app/data',
@@ -271,52 +271,77 @@ app.get('/api/shards/integrity', (req, res) => {
 
     const nodeReports = [];
     for (let i = 1; i <= 5; i++) {
-      const nodePath = path.join(foundBaseDir, `node_${i}.db`);
-      const exists = fsSync.existsSync(nodePath);
-      let sizeBytes = 0;
-      let totalShares = 0;
-      let status = 'HEALTHY';
-      let integrityCheck = 'VALID';
+      let nodeReport = null;
 
-      if (exists) {
-        try {
-          const stats = fsSync.statSync(nodePath);
-          sizeBytes = stats.size;
-
-          const nDb = new Database(nodePath, { readonly: true });
-          const countRow = nDb.prepare('SELECT COUNT(*) as count FROM shard_references').get();
-          totalShares = countRow ? countRow.count : 0;
-
-          // Check integrity of stored shares
-          const sampleShares = nDb.prepare('SELECT share_value, share_hash, share_checksum FROM shard_references LIMIT 10').all();
-          for (const s of sampleShares) {
-            const computedHash = createHash('sha3-256').update(s.share_value).digest('hex');
-            if (computedHash !== s.share_hash) {
-              integrityCheck = 'HASH_MISMATCH';
-              status = 'CORRUPTED';
-              break;
-            }
-          }
-          nDb.close();
-        } catch (e) {
-          status = 'ERROR';
-          integrityCheck = e.message;
+      // Try HTTP Container Health Check first
+      try {
+        const nodeUrl = `http://shard-node-${i}:3000/health`;
+        const r = await fetch(nodeUrl, { signal: AbortSignal.timeout(1200) });
+        if (r.ok) {
+          const data = await r.json();
+          nodeReport = {
+            nodeId: i,
+            dbName: `shard-node-${i}`,
+            path: nodeUrl,
+            exists: true,
+            sizeBytes: data.sizeBytes || 0,
+            totalShares: data.totalShares || 0,
+            status: data.status || 'HEALTHY',
+            integrityCheck: data.integrityCheck || 'VALID'
+          };
         }
-      } else {
-        status = 'OFFLINE';
-        integrityCheck = 'FILE_NOT_FOUND';
+      } catch (e) {}
+
+      // Disk File Fallback if container HTTP probe fails
+      if (!nodeReport) {
+        const nodePath = path.join(foundBaseDir, `node_${i}.db`);
+        const exists = fsSync.existsSync(nodePath);
+        let sizeBytes = 0;
+        let totalShares = 0;
+        let status = 'HEALTHY';
+        let integrityCheck = 'VALID';
+
+        if (exists) {
+          try {
+            const stats = fsSync.statSync(nodePath);
+            sizeBytes = stats.size;
+
+            const nDb = new Database(nodePath, { readonly: true });
+            const countRow = nDb.prepare('SELECT COUNT(*) as count FROM shard_references').get();
+            totalShares = countRow ? countRow.count : 0;
+
+            const sampleShares = nDb.prepare('SELECT share_value, share_hash, share_checksum FROM shard_references LIMIT 10').all();
+            for (const s of sampleShares) {
+              const computedHash = createHash('sha3-256').update(s.share_value).digest('hex');
+              if (computedHash !== s.share_hash) {
+                integrityCheck = 'HASH_MISMATCH';
+                status = 'CORRUPTED';
+                break;
+              }
+            }
+            nDb.close();
+          } catch (e) {
+            status = 'ERROR';
+            integrityCheck = e.message;
+          }
+        } else {
+          status = 'OFFLINE';
+          integrityCheck = 'FILE_NOT_FOUND';
+        }
+
+        nodeReport = {
+          nodeId: i,
+          dbName: `node_${i}.db`,
+          path: nodePath,
+          exists,
+          sizeBytes,
+          totalShares,
+          status,
+          integrityCheck
+        };
       }
 
-      nodeReports.push({
-        nodeId: i,
-        dbName: `node_${i}.db`,
-        path: nodePath,
-        exists,
-        sizeBytes,
-        totalShares,
-        status,
-        integrityCheck
-      });
+      nodeReports.push(nodeReport);
     }
 
     res.json({ success: true, baseDir: foundBaseDir, nodes: nodeReports });

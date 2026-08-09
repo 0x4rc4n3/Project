@@ -12,7 +12,7 @@ export async function verifyRoute(req, res) {
     });
   }
 
-  const record = getCredentialById(credentialId);
+  const record = await getCredentialById(credentialId);
   if (!record) {
     return res.status(404).json({
       error: 'Credential not found',
@@ -55,7 +55,7 @@ export async function verifyRoute(req, res) {
     }
   }
 
-  const storedShares = getSharesByCredentialId(credentialId);
+  const storedShares = await getSharesByCredentialId(credentialId);
 
   // Integrity check: verify each share's hash before trusting it
   const validShares = storedShares.filter((row) => {

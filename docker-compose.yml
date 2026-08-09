@@ -73,9 +73,89 @@ services:
     networks:
       - scatterid_net
 
+  shard-node-1:
+    build:
+      context: ./components/shard-node
+      dockerfile: Dockerfile
+    container_name: scatterid-shard-1
+    ports:
+      - "3001:3000"
+    environment:
+      NODE_INDEX: "1"
+      DATA_DIR: "/app/data"
+    volumes:
+      - shard_1_data:/app/data
+    networks:
+      - scatterid_net
+
+  shard-node-2:
+    build:
+      context: ./components/shard-node
+      dockerfile: Dockerfile
+    container_name: scatterid-shard-2
+    ports:
+      - "3002:3000"
+    environment:
+      NODE_INDEX: "2"
+      DATA_DIR: "/app/data"
+    volumes:
+      - shard_2_data:/app/data
+    networks:
+      - scatterid_net
+
+  shard-node-3:
+    build:
+      context: ./components/shard-node
+      dockerfile: Dockerfile
+    container_name: scatterid-shard-3
+    ports:
+      - "3003:3000"
+    environment:
+      NODE_INDEX: "3"
+      DATA_DIR: "/app/data"
+    volumes:
+      - shard_3_data:/app/data
+    networks:
+      - scatterid_net
+
+  shard-node-4:
+    build:
+      context: ./components/shard-node
+      dockerfile: Dockerfile
+    container_name: scatterid-shard-4
+    ports:
+      - "3004:3000"
+    environment:
+      NODE_INDEX: "4"
+      DATA_DIR: "/app/data"
+    volumes:
+      - shard_4_data:/app/data
+    networks:
+      - scatterid_net
+
+  shard-node-5:
+    build:
+      context: ./components/shard-node
+      dockerfile: Dockerfile
+    container_name: scatterid-shard-5
+    ports:
+      - "3005:3000"
+    environment:
+      NODE_INDEX: "5"
+      DATA_DIR: "/app/data"
+    volumes:
+      - shard_5_data:/app/data
+    networks:
+      - scatterid_net
+
 networks:
   scatterid_net:
     driver: bridge
 
 volumes:
   verification_data:
+  shard_1_data:
+  shard_2_data:
+  shard_3_data:
+  shard_4_data:
+  shard_5_data:
