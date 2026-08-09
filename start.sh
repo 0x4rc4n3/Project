@@ -37,6 +37,32 @@ else
     echo "[+] Hyperledger Fabric network is active."
 fi
 
+# 3.5. Configure AppRole inside Vault
+echo "[+] Hardening KMS Vault (Configuring AppRole and access policy)..."
+for i in {1..15}; do
+    if docker exec vault.scatterid.com vault status -address=http://127.0.0.1:8200 >/dev/null 2>&1; then
+        break
+    fi
+    echo "    Waiting for Vault container to start..."
+    sleep 2
+done
+
+# Enable approle auth
+docker exec -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN=scatterid-vault-root-token vault.scatterid.com vault auth enable approle 2>/dev/null || true
+
+# Write custom security policy
+echo 'path "secret/data/scatterid/mldsa" { capabilities = ["create", "read", "update"] }
+path "secret/metadata/scatterid/mldsa" { capabilities = ["read"] }' | \
+docker exec -i -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN=scatterid-vault-root-token vault.scatterid.com vault policy write issuer-policy - >/dev/null
+
+# Create/configure role
+docker exec -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN=scatterid-vault-root-token vault.scatterid.com vault write auth/approle/role/issuer-role token_policies="issuer-policy" token_ttl=1h token_max_ttl=4h >/dev/null
+
+# Retrieve AppRole Credentials dynamically
+export VAULT_ROLE_ID=$(docker exec -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN=scatterid-vault-root-token vault.scatterid.com vault read -field=role_id auth/approle/role/issuer-role/role-id)
+export VAULT_SECRET_ID=$(docker exec -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN=scatterid-vault-root-token vault.scatterid.com vault write -f -field=secret_id auth/approle/role/issuer-role/secret-id)
+export VAULT_SECRET_PATH="scatterid/mldsa"
+
 # 4. Bring up Docker Compose Microservice Stack
 echo "[+] Starting ScatterID microservice stack (Vault, Crypto, Verification, Dashboard)..."
 docker compose up -d

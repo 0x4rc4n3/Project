@@ -18,6 +18,9 @@ class KMS:
     def __init__(self):
         self.vault_url = os.environ.get("VAULT_ADDR", "http://localhost:8200")
         self.vault_token = os.environ.get("VAULT_TOKEN", "scatterid-vault-root-token")
+        self.vault_role_id = os.environ.get("VAULT_ROLE_ID")
+        self.vault_secret_id = os.environ.get("VAULT_SECRET_ID")
+        self.secret_path = os.environ.get("VAULT_SECRET_PATH", "scatterid/mldsa")
         self.client = None
         self.fallback_pub = None
         self.fallback_priv = None
@@ -50,7 +53,15 @@ class KMS:
     def _init_vault(self):
         """Initialize and authenticate the Vault client."""
         try:
-            self.client = hvac.Client(url=self.vault_url, token=self.vault_token)
+            if self.vault_role_id and self.vault_secret_id:
+                self.client = hvac.Client(url=self.vault_url)
+                self.client.auth.approle.login(
+                    role_id=self.vault_role_id,
+                    secret_id=self.vault_secret_id
+                )
+            else:
+                self.client = hvac.Client(url=self.vault_url, token=self.vault_token)
+            
             if not self.client.is_authenticated():
                 print("KMS Warning: Vault authentication failed. Using in-memory keypair fallback.")
                 self.client = None
@@ -64,7 +75,7 @@ class KMS:
         """Read all past KV v2 versions from Vault to populate key history."""
         if not self.client:
             return
-        secret_path = "kms/issuer-key"
+        secret_path = self.secret_path
         mount_point = "secret"
         try:
             meta = self.client.secrets.kv.v2.read_secret_metadata(path=secret_path, mount_point=mount_point)
@@ -95,7 +106,7 @@ class KMS:
                     self._save_disk_history()
             return self.fallback_pub, self.fallback_priv
 
-        secret_path = "kms/issuer-key"
+        secret_path = self.secret_path
         mount_point = "secret"
 
         try:
@@ -150,7 +161,7 @@ class KMS:
             self.fallback_priv = private_key
             return public_key, private_key
 
-        secret_path = "kms/issuer-key"
+        secret_path = self.secret_path
         mount_point = "secret"
         payload = {
             "public_key": public_key.hex(),

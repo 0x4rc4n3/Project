@@ -9,6 +9,9 @@ services:
     environment:
       VAULT_ADDR: "http://vault.scatterid.com:8200"
       VAULT_TOKEN: "${VAULT_TOKEN:-scatterid-vault-root-token}"
+      VAULT_ROLE_ID: "${VAULT_ROLE_ID:-}"
+      VAULT_SECRET_ID: "${VAULT_SECRET_ID:-}"
+      VAULT_SECRET_PATH: "${VAULT_SECRET_PATH:-scatterid/mldsa}"
       CRYPTO_SERVICE_API_KEY: "${CRYPTO_SERVICE_API_KEY:-dev-secret-key-123}"
     volumes:
       - ./components/crypto/certs:/app/certs
