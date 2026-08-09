@@ -10,30 +10,33 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
-  <!-- Sidebar Navigation -->
-  <nav class="sidebar">
+  <!-- Sidebar Navigation (Collapsible Horizontal) -->
+  <nav class="sidebar" id="main-sidebar">
     <div class="logo">
-      <img src="icon.png" alt="ScatterID Logo" class="brand-logo-img">
-      <span class="logo-text">ScatterID</span>
+      <div class="brand-wrapper">
+        <img src="icon.png" alt="ScatterID Logo" class="brand-logo-img">
+        <span class="logo-text">ScatterID</span>
+      </div>
+      <button class="sidebar-toggle-btn" id="sidebar-toggle-btn" title="Collapse / Expand Menu">◀</button>
     </div>
     <ul class="nav-links">
-      <li><a href="#" class="nav-link active" data-tab="tab-demo">Sandbox</a></li>
-      <li><a href="#" class="nav-link" data-tab="tab-overview">Health Status</a></li>
-      <li><a href="#" class="nav-link" data-tab="tab-db">Shard Matrix</a></li>
-      <li><a href="#" class="nav-link" data-tab="tab-logs">Fabric Logs</a></li>
-      <li><a href="#" class="nav-link" data-tab="tab-diagnostics">Diagnostics</a></li>
-      <li><a href="#" class="nav-link" data-tab="tab-architecture">Architecture</a></li>
+      <li><a href="#" class="nav-link active" data-tab="tab-demo"><span class="nav-icon-dot"></span><span class="nav-text">Sandbox</span></a></li>
+      <li><a href="#" class="nav-link" data-tab="tab-overview"><span class="nav-icon-dot"></span><span class="nav-text">Health Status</span></a></li>
+      <li><a href="#" class="nav-link" data-tab="tab-db"><span class="nav-icon-dot"></span><span class="nav-text">Shard Matrix</span></a></li>
+      <li><a href="#" class="nav-link" data-tab="tab-logs"><span class="nav-icon-dot"></span><span class="nav-text">Fabric Logs</span></a></li>
+      <li><a href="#" class="nav-link" data-tab="tab-diagnostics"><span class="nav-icon-dot"></span><span class="nav-text">Diagnostics</span></a></li>
+      <li><a href="#" class="nav-link" data-tab="tab-architecture"><span class="nav-icon-dot"></span><span class="nav-text">Architecture</span></a></li>
     </ul>
     <div class="sidebar-footer">
       <div class="system-tag">
         <span class="status-dot"></span>
-        <span>Phased Stack Active</span>
+        <span class="sidebar-footer-text">ScatterID — Powered by Rynex Security</span>
       </div>
     </div>
   </nav>
 
   <!-- Main Workspace -->
-  <main class="main-content">
+  <main class="main-content" id="main-content">
     <div class="glow-bg"></div>
 
     <!-- Header -->
@@ -49,7 +52,7 @@
 
     <div class="content-body">
       
-      <!-- TAB 1: Interactive Sandbox Demo (DEFAULT TOP TAB) -->
+      <!-- TAB 1: Interactive Sandbox Demo (TOP DEFAULT TAB) -->
       <section id="tab-demo" class="tab-pane active">
         <!-- Prominent View Switch Banner -->
         <div class="prominent-switch-bar mb-6">
@@ -88,7 +91,7 @@
               </div>
             </div>
 
-            <!-- Verification Result Badge Panel (Hidden until user clicks Verify) -->
+            <!-- Verification Result Panel (Hidden until user clicks Verify) -->
             <div class="result-panel hidden" id="tab-verification-result">
               <div class="result-header">
                 <div class="badge-status-box valid" id="tab-result-status-badge">
@@ -140,7 +143,7 @@
             <div class="telemetry-block glass-panel">
               <div class="block-header">
                 <h3>ML-DSA-65 Post-Quantum Cryptography</h3>
-                <span class="tag purple">NIST FIPS 204 Standard</span>
+                <span class="tag green">NIST FIPS 204 Standard</span>
               </div>
               <div class="tech-spec-list">
                 <div class="spec-row"><span class="spec-key">Signature Scheme:</span><span class="spec-val mono">ML-DSA-65 (Dilithium3)</span></div>
@@ -170,10 +173,10 @@
       <section id="tab-overview" class="tab-pane">
         <div class="grid grid-2">
           <!-- API Services Status -->
-          <div class="card glass">
+          <div class="card">
             <div class="card-header">
               <h3>Core Microservice Endpoints</h3>
-              <span class="badge blue">HTTP / TLS Probe</span>
+              <span class="badge green">HTTP / TLS Probe</span>
             </div>
             <div class="status-list">
               <div class="status-item">
@@ -188,10 +191,10 @@
           </div>
 
           <!-- Blockchain Network Status -->
-          <div class="card glass">
+          <div class="card">
             <div class="card-header">
               <h3>Hyperledger Fabric Network Nodes</h3>
-              <span class="badge cyan">gRPC Protocol</span>
+              <span class="badge green">gRPC Protocol</span>
             </div>
             <div class="status-list">
               <div class="status-item">
@@ -211,59 +214,21 @@
         </div>
       </section>
 
-      <!-- TAB 3: Shard Matrix & Ledger (Multi-DB & Fault Tolerance Simulator) -->
+      <!-- TAB 3: Shard Matrix & Ledger (Extended Cards with Embedded Compromise Controls) -->
       <section id="tab-db" class="tab-pane">
-        <!-- 5-Node Multi-Database Shard Matrix -->
-        <div class="card glass mb-4">
+        <!-- 5-Node Multi-Database Shard Matrix with Embedded Controls -->
+        <div class="card mb-4">
           <div class="card-header">
             <h3>5-Node Multi-Database Shard Matrix</h3>
-            <p class="subtitle">Real-time health, total stored shares, and SHA3-256 integrity checks across isolated nodes (shard-node-1 .. shard-node-5)</p>
+            <p class="subtitle">Embedded Fault Tolerance Simulator: Click "Simulate Compromise" to take a node container offline and test 3-of-5 threshold resilience.</p>
           </div>
           <div class="shard-matrix-grid" id="shard-matrix-cards">
             <div class="text-center p-3">Scanning 5 isolated node databases...</div>
           </div>
         </div>
 
-        <!-- Node Compromise & Fault Tolerance Simulator Panel -->
-        <div class="card glass mb-4">
-          <div class="card-header">
-            <h3>Node Compromise & Fault Tolerance Simulator</h3>
-            <p class="subtitle">Simulate taking individual database containers offline to test 3-of-5 Shamir secret sharing resilience</p>
-          </div>
-          <div class="fault-controls-grid" id="fault-simulator-grid">
-            <div class="fault-node-control">
-              <span class="node-title">Shard Node 1</span>
-              <button class="btn btn-sm btn-outline btn-stop-node" data-node="shard-node-1">Take Offline</button>
-              <button class="btn btn-sm btn-primary btn-start-node hidden" data-node="shard-node-1">Restore Node</button>
-            </div>
-            <div class="fault-node-control">
-              <span class="node-title">Shard Node 2</span>
-              <button class="btn btn-sm btn-outline btn-stop-node" data-node="shard-node-2">Take Offline</button>
-              <button class="btn btn-sm btn-primary btn-start-node hidden" data-node="shard-node-2">Restore Node</button>
-            </div>
-            <div class="fault-node-control">
-              <span class="node-title">Shard Node 3</span>
-              <button class="btn btn-sm btn-outline btn-stop-node" data-node="shard-node-3">Take Offline</button>
-              <button class="btn btn-sm btn-primary btn-start-node hidden" data-node="shard-node-3">Restore Node</button>
-            </div>
-            <div class="fault-node-control">
-              <span class="node-title">Shard Node 4</span>
-              <button class="btn btn-sm btn-outline btn-stop-node" data-node="shard-node-4">Take Offline</button>
-              <button class="btn btn-sm btn-primary btn-start-node hidden" data-node="shard-node-4">Restore Node</button>
-            </div>
-            <div class="fault-node-control">
-              <span class="node-title">Shard Node 5</span>
-              <button class="btn btn-sm btn-outline btn-stop-node" data-node="shard-node-5">Take Offline</button>
-              <button class="btn btn-sm btn-primary btn-start-node hidden" data-node="shard-node-5">Restore Node</button>
-            </div>
-          </div>
-          <div class="fault-status-bar" id="fault-simulation-status">
-            <span>Click any node button above to simulate a container compromise or server outage. Verification will remain 100% functional if >= 3 nodes remain online!</span>
-          </div>
-        </div>
-
         <!-- Issued Credentials Table -->
-        <div class="card glass">
+        <div class="card">
           <div class="card-header">
             <h3>Issued Credentials & Blockchain Anchors</h3>
             <p class="subtitle">Direct visualization of SQLite DB records synchronized with Hyperledger Fabric State</p>
@@ -290,9 +255,9 @@
         </div>
       </section>
 
-      <!-- TAB 4: Fabric Logs (Dedicated Section for Container Output) -->
+      <!-- TAB 4: Fabric Logs (Full-Viewport Output Console) -->
       <section id="tab-logs" class="tab-pane">
-        <div class="card glass log-card">
+        <div class="card log-card full-viewport">
           <div class="card-header">
             <h3>Hyperledger Fabric Peer & Orderer Log Output</h3>
             <div class="log-controls">
@@ -306,95 +271,70 @@
               <button class="btn btn-primary" id="refresh-logs-btn">Fetch Container Logs</button>
             </div>
           </div>
-          <div class="log-container" style="min-height: 480px;">
+          <div class="log-container">
             <pre id="log-output">Select a container and click "Fetch Container Logs" to stream output...</pre>
           </div>
         </div>
       </section>
 
-      <!-- TAB 5: Diagnostics Console (Redesigned & Understandable) -->
+      <!-- TAB 5: Diagnostics Console (Full-Viewport Output Console) -->
       <section id="tab-diagnostics" class="tab-pane">
-        <!-- Diagnostic Workflow Steps -->
-        <div class="diag-steps-grid mb-4">
-          <div class="diag-step-card">
-            <div class="step-badge">STAGE 1</div>
-            <h4>1. Package Claims</h4>
-            <p>Raw identity claims are hashed with SHA3-256 & signed via NIST ML-DSA-65.</p>
-          </div>
-          <div class="diag-step-card">
-            <div class="step-badge">STAGE 2</div>
-            <h4>2. Shamir Sharding</h4>
-            <p>Secrets are fragmented into 5 polynomial shares (threshold k=3).</p>
-          </div>
-          <div class="diag-step-card">
-            <div class="step-badge">STAGE 3</div>
-            <h4>3. Fabric Anchor</h4>
-            <p>Proof hash is committed to Hyperledger Fabric private ledger via gRPC.</p>
-          </div>
-          <div class="diag-step-card">
-            <div class="step-badge">STAGE 4</div>
-            <h4>4. Verification Audit</h4>
-            <p>Server verifies ledger proof & validates threshold share integrity.</p>
-          </div>
-        </div>
-
-        <div class="card glass">
+        <div class="card full-viewport">
           <div class="card-header">
             <h3>End-to-End System Smoke Tester</h3>
             <button class="btn btn-primary" id="run-diagnostic-btn">Run E2E Smoke Test Suite</button>
           </div>
 
-          <div class="console-box mt-4">
+          <div class="console-box full-viewport mt-4">
             <div class="console-header">
               <span>Diagnostics Terminal Output</span>
               <span class="cursor">_</span>
             </div>
-            <div class="console-body" id="diagnostics-console" style="min-height: 280px;">
+            <div class="console-body" id="diagnostics-console">
               Click "Run E2E Smoke Test Suite" above to test complete issuance, sharding, anchoring, and verification flow...
             </div>
           </div>
         </div>
       </section>
 
-      <!-- TAB 6: Architecture Map -->
+      <!-- TAB 6: System Architecture (Clean Monochrome Design) -->
       <section id="tab-architecture" class="tab-pane">
-        <div class="card glass">
+        <div class="card">
           <div class="card-header">
-            <h3>ScatterID Infrastructure Visual Map</h3>
-            <p class="subtitle">Phased multi-node architecture layout including Post-Quantum microservice and SSS key boundaries</p>
+            <h3>ScatterID Infrastructure Architecture Map</h3>
+            <span class="badge green">5-Stage System Flow</span>
           </div>
           
           <div class="arch-flow-container">
             <div class="arch-flow-grid">
-              <div class="arch-card blue">
-                <span class="badge blue">Client Context</span>
+              <div class="arch-card">
+                <span class="badge green">Client Context</span>
                 <h4>Client SDK</h4>
-                <code>client.js / CLI</code>
                 <p>Initiates credential issuance and verification lifecycle</p>
               </div>
 
-              <div class="arch-card cyan">
-                <span class="badge cyan">Port 3000 (Express)</span>
-                <h4>Verification API Gateway</h4>
-                <p>Routes requests, manages 5-node DB shards, anchors proofs via Fabric gRPC</p>
+              <div class="arch-card">
+                <span class="badge green">Port 3000</span>
+                <h4>Verification API</h4>
+                <p>Routes requests, manages 5-node DB shards, anchors proofs</p>
               </div>
 
-              <div class="arch-card purple">
-                <span class="badge purple">Port 5001 (Flask/mTLS)</span>
-                <h4>Crypto Microservice</h4>
-                <p><strong>ML-DSA-65</strong> NIST FIPS 204 signatures & <strong>Shamir 3-of-5</strong> secret sharing</p>
+              <div class="arch-card">
+                <span class="badge green">Port 5001</span>
+                <h4>Crypto Service</h4>
+                <p>ML-DSA-65 signatures & Shamir 3-of-5 secret sharing</p>
               </div>
 
-              <div class="arch-card amber">
-                <span class="badge amber">Port 8200 (Vault)</span>
-                <h4>HashiCorp Vault KMS</h4>
-                <p>KV v2 zero-trust post-quantum private key management engine</p>
+              <div class="arch-card">
+                <span class="badge green">Port 8200</span>
+                <h4>Vault KMS</h4>
+                <p>Zero-trust post-quantum private key engine</p>
               </div>
 
-              <div class="arch-card green">
-                <span class="badge green">Fabric Channel</span>
-                <h4>Hyperledger Audit Network</h4>
-                <p>Raft Orderer (7050), Peers (7051, 8051), <code>scatterproof</code> Go Chaincode</p>
+              <div class="arch-card">
+                <span class="badge green">gRPC</span>
+                <h4>Fabric Audit Ledger</h4>
+                <p>Raft Orderer (7050), Peers (7051, 8051), Go Chaincode</p>
               </div>
             </div>
 
@@ -405,26 +345,25 @@
               </div>
               <div class="arch-step-item">
                 <span class="arch-step-num">2</span>
-                <span class="arch-step-info"><strong>Gateway -> Crypto Service:</strong> <code>POST /package</code> (HTTPS + Bearer API Key). Signs with ML-DSA-65 and splits into 3-of-5 Shamir secret shares.</span>
+                <span class="arch-step-info"><strong>Gateway -> Crypto Service:</strong> <code>POST /package</code> signs via ML-DSA-65 and splits into 3-of-5 Shamir secret shares.</span>
               </div>
               <div class="arch-step-item">
                 <span class="arch-step-num">3</span>
-                <span class="arch-step-info"><strong>Gateway -> Multi-DB Shards:</strong> Saves share 1..5 across isolated SQLite node containers (<code>shard-node-1</code> .. <code>shard-node-5</code>).</span>
+                <span class="arch-step-info"><strong>Gateway -> Shard Matrix:</strong> Distributes share 1..5 across 5 isolated SQLite containers (<code>scatterid-shard-1..5</code>).</span>
               </div>
               <div class="arch-step-item">
                 <span class="arch-step-num">4</span>
-                <span class="arch-step-info"><strong>Gateway -> Fabric Network:</strong> Submits <code>AnchorProof</code> transaction via gRPC mTLS to <code>scatterproof</code> chaincode.</span>
+                <span class="arch-step-info"><strong>Gateway -> Fabric Network:</strong> Submits proof transaction via gRPC to <code>scatterproof</code> chaincode.</span>
               </div>
               <div class="arch-step-item">
                 <span class="arch-step-num">5</span>
-                <span class="arch-step-info"><strong>Verifier -> Gateway:</strong> <code>POST /verify</code> queries ledger anchor, retrieves >= 3 valid shares, and verifies ML-DSA-65 signature.</span>
+                <span class="arch-step-info"><strong>Verifier -> Gateway:</strong> <code>POST /verify</code> queries ledger anchor, retrieves >= 3 valid shares, and verifies signature.</span>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Security & Boundaries Card -->
-        <div class="card glass mb-4" style="margin-top: 24px;">
+        <div class="card mb-4" style="margin-top: 24px;">
           <div class="card-header">
             <h3>Cryptographic Security & System Boundaries</h3>
           </div>
@@ -432,11 +371,11 @@
             <div class="boundary-list">
               <div class="boundary-item">
                 <h4>1. Zero-Knowledge Key Storage</h4>
-                <p>Private keys are never stored on local disk or environment variables. All signing keypairs are managed dynamically in HashiCorp Vault.</p>
+                <p>Private keys are never stored on local disk or environment variables. All signing keypairs are managed dynamically in Vault.</p>
               </div>
               <div class="boundary-item">
                 <h4>2. Isolated Database Sharding</h4>
-                <p>5 independent SQLite database nodes are maintained (`shard-node-1` through `shard-node-5`). No single database node contains >1/n shares.</p>
+                <p>5 independent SQLite database nodes are maintained (`scatterid-shard-1..5`). No single database node contains >1/n shares.</p>
               </div>
             </div>
             <div class="boundary-list">
@@ -453,10 +392,6 @@
         </div>
       </section>
 
-      <!-- Attribution Footer -->
-      <footer class="app-footer">
-        ScatterID Engine v1.0.0 — Powered by Rynex Security
-      </footer>
     </div>
   </main>
 

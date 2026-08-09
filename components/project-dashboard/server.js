@@ -100,17 +100,28 @@ app.post('/api/shards/toggle-container', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Invalid parameters. Requires nodeName and action (stop|start).' });
   }
 
-  if (!nodeName.startsWith('shard-node-')) {
-    return res.status(403).json({ success: false, error: 'Only shard-node containers can be toggled.' });
-  }
+  const containerMap = {
+    'shard-node-1': 'scatterid-shard-1',
+    'shard-node-2': 'scatterid-shard-2',
+    'shard-node-3': 'scatterid-shard-3',
+    'shard-node-4': 'scatterid-shard-4',
+    'shard-node-5': 'scatterid-shard-5',
+    'scatterid-shard-1': 'scatterid-shard-1',
+    'scatterid-shard-2': 'scatterid-shard-2',
+    'scatterid-shard-3': 'scatterid-shard-3',
+    'scatterid-shard-4': 'scatterid-shard-4',
+    'scatterid-shard-5': 'scatterid-shard-5',
+  };
 
-  const cmd = `docker ${action} ${nodeName}`;
+  const targetContainer = containerMap[nodeName] || nodeName;
+
+  const cmd = `docker ${action} ${targetContainer}`;
   const result = await runCmd(cmd);
   
   if (result.success) {
-    res.json({ success: true, nodeName, action, message: `Container ${nodeName} ${action}ed successfully.` });
+    res.json({ success: true, nodeName, targetContainer, action, message: `Container ${targetContainer} ${action}ed successfully.` });
   } else {
-    res.status(500).json({ success: false, nodeName, action, error: result.stderr || 'Failed to toggle container state.' });
+    res.status(500).json({ success: false, nodeName, targetContainer, action, error: result.stderr || `Failed to ${action} ${targetContainer}.` });
   }
 });
 
