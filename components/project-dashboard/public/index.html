@@ -12,15 +12,15 @@
   <!-- Sidebar Navigation -->
   <nav class="sidebar">
     <div class="logo">
-      <span class="logo-icon">⚡</span>
+      <div class="logo-box"></div>
       <span class="logo-text">ScatterID</span>
     </div>
     <ul class="nav-links">
-      <li><a href="#" class="nav-link active" data-tab="tab-overview">⚡ Health Status</a></li>
-      <li><a href="#" class="nav-link" data-tab="tab-db">🔒 Multi-DB & Ledger Explorer</a></li>
-      <li><a href="#" class="nav-link" data-tab="tab-diagnostics">🛠️ Diagnostics Console</a></li>
-      <li><a href="#" class="nav-link" data-tab="tab-architecture">🗺️ System Architecture Map</a></li>
-      <li><a href="#" class="nav-link" data-tab="tab-progress">📜 Live Progress Ledger</a></li>
+      <li><a href="#" class="nav-link active" data-tab="tab-overview">Health Status</a></li>
+      <li><a href="#" class="nav-link" data-tab="tab-db">Multi-DB & Ledger Explorer</a></li>
+      <li><a href="#" class="nav-link" data-tab="tab-diagnostics">Diagnostics Console</a></li>
+      <li><a href="#" class="nav-link" data-tab="tab-architecture">System Architecture Map</a></li>
+      <li><a href="#" class="nav-link" data-tab="tab-progress">Live Progress Ledger</a></li>
     </ul>
     <div class="sidebar-footer">
       <div class="system-tag">
@@ -41,7 +41,8 @@
         <p class="subtitle">Post-Quantum Sharded Credential Verification Architecture</p>
       </div>
       <div class="header-right">
-        <button class="btn btn-outline" id="refresh-all-btn">🔄 Refresh Data</button>
+        <a href="/demo" class="btn btn-primary" style="margin-right: 8px;">Presentation Demo ↗</a>
+        <button class="btn btn-outline" id="refresh-all-btn">Refresh Data</button>
       </div>
     </header>
 
@@ -115,7 +116,7 @@
         <div class="card glass mb-4">
           <div class="card-header">
             <h3>5-Node Multi-Database Shard Matrix</h3>
-            <p class="subtitle">Real-time health, total stored shares, and SHA3-256 integrity checks across isolated nodes (node_1.db .. node_5.db)</p>
+            <p class="subtitle">Real-time health, total stored shares, and SHA3-256 integrity checks across isolated nodes (shard-node-1 .. shard-node-5)</p>
           </div>
           <div class="shard-matrix-grid" id="shard-matrix-cards">
             <div class="text-center p-3">Scanning 5 isolated node databases...</div>
@@ -168,7 +169,7 @@
   "timestamp": "2026-07-08T14:50:00Z"
 }</pre>
               </div>
-              <button class="btn btn-primary" id="run-diagnostic-btn">⚡ Run End-to-End Diagnostics</button>
+              <button class="btn btn-primary" id="run-diagnostic-btn">Run End-to-End Diagnostics</button>
             </div>
 
             <div class="console-box">
@@ -265,23 +266,23 @@
             <div class="arch-steps-list">
               <div class="arch-step-item">
                 <span class="arch-step-num">1</span>
-                <span class="arch-step-info"><strong>Client ➔ Gateway:</strong> <code>POST /issue</code> submits raw claim payload</span>
+                <span class="arch-step-info"><strong>Client -> Gateway:</strong> <code>POST /issue</code> submits raw claim payload</span>
               </div>
               <div class="arch-step-item">
                 <span class="arch-step-num">2</span>
-                <span class="arch-step-info"><strong>Gateway ➔ Crypto Service:</strong> <code>POST /package</code> (HTTPS + Bearer API Key). Signs with ML-DSA-65 and splits into 3-of-5 Shamir secret shares.</span>
+                <span class="arch-step-info"><strong>Gateway -> Crypto Service:</strong> <code>POST /package</code> (HTTPS + Bearer API Key). Signs with ML-DSA-65 and splits into 3-of-5 Shamir secret shares.</span>
               </div>
               <div class="arch-step-item">
                 <span class="arch-step-num">3</span>
-                <span class="arch-step-info"><strong>Gateway ➔ Multi-DB Shards:</strong> Saves share 1..5 across isolated SQLite node databases (<code>node_1.db</code> .. <code>node_5.db</code>).</span>
+                <span class="arch-step-info"><strong>Gateway -> Multi-DB Shards:</strong> Saves share 1..5 across isolated SQLite node containers (<code>shard-node-1</code> .. <code>shard-node-5</code>).</span>
               </div>
               <div class="arch-step-item">
                 <span class="arch-step-num">4</span>
-                <span class="arch-step-info"><strong>Gateway ➔ Fabric Network:</strong> Submits <code>AnchorProof</code> transaction via gRPC mTLS to <code>scatterproof</code> chaincode.</span>
+                <span class="arch-step-info"><strong>Gateway -> Fabric Network:</strong> Submits <code>AnchorProof</code> transaction via gRPC mTLS to <code>scatterproof</code> chaincode.</span>
               </div>
               <div class="arch-step-item">
                 <span class="arch-step-num">5</span>
-                <span class="arch-step-info"><strong>Verifier ➔ Gateway:</strong> <code>POST /verify</code> queries ledger anchor, retrieves $\ge 3$ valid shares, and verifies ML-DSA-65 signature.</span>
+                <span class="arch-step-info"><strong>Verifier -> Gateway:</strong> <code>POST /verify</code> queries ledger anchor, retrieves >= 3 valid shares, and verifies ML-DSA-65 signature.</span>
               </div>
             </div>
           </div>
@@ -300,7 +301,7 @@
               </div>
               <div class="boundary-item">
                 <h4>2. Isolated Database Sharding</h4>
-                <p>5 independent SQLite database nodes are maintained (`node_1.db` through `node_5.db`). No single database node contains $>1/n$ shares.</p>
+                <p>5 independent SQLite database nodes are maintained (`shard-node-1` through `shard-node-5`). No single database node contains >1/n shares.</p>
               </div>
             </div>
             <div class="boundary-list">
@@ -329,6 +330,11 @@
           </div>
         </div>
       </section>
+
+      <!-- Attribution Footer -->
+      <footer class="app-footer">
+        ScatterID Engine v1.0.0 — Powered by Rynex Security
+      </footer>
     </div>
   </main>
 

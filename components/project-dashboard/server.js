@@ -21,6 +21,10 @@ const VERIFICATION_API_HOST = process.env.VERIFICATION_API_HOST || 'verification
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.get('/demo', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/demo.html'));
+});
+
 // Path to SQLite DB
 const dbPath = process.env.SQLITE_DB_PATH || path.resolve(__dirname, '../verification-api/credentials.db');
 
