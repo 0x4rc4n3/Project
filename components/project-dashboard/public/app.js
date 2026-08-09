@@ -11,6 +11,28 @@ if (sidebar && sidebarToggleBtn) {
   });
 }
 
+// Architecture Sub-View Toggle
+const btnArchInfra = document.getElementById('btn-arch-infra');
+const btnArchCrypto = document.getElementById('btn-arch-crypto');
+const viewArchInfra = document.getElementById('arch-view-infra');
+const viewArchCrypto = document.getElementById('arch-view-crypto');
+
+if (btnArchInfra && btnArchCrypto && viewArchInfra && viewArchCrypto) {
+  btnArchInfra.addEventListener('click', () => {
+    btnArchInfra.classList.add('active');
+    btnArchCrypto.classList.remove('active');
+    viewArchInfra.style.display = 'block';
+    viewArchCrypto.style.display = 'none';
+  });
+
+  btnArchCrypto.addEventListener('click', () => {
+    btnArchCrypto.classList.add('active');
+    btnArchInfra.classList.remove('active');
+    viewArchInfra.style.display = 'none';
+    viewArchCrypto.style.display = 'block';
+  });
+}
+
 // Tab Navigation
 const navLinks = document.querySelectorAll('.nav-link');
 const tabPanes = document.querySelectorAll('.tab-pane');

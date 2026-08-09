@@ -125,18 +125,26 @@ export async function getSharesByCredentialId(id) {
   const allShares = [];
 
   for (let i = 1; i <= NUM_NODES; i++) {
-    try {
-      const response = await fetch(`${getShardNodeUrl(i)}/shard/${id}`, { signal: AbortSignal.timeout(1500) });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.share) {
-          allShares.push(data.share);
+    let share = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await fetch(`${getShardNodeUrl(i)}/shard/${id}`, { signal: AbortSignal.timeout(1200) });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.share) {
+            share = data.share;
+            break;
+          }
         }
-      } else {
-        console.warn(`Shard Node ${i} returned non-OK status ${response.status}`);
+      } catch (err) {
+        if (attempt === 0) await new Promise(r => setTimeout(r, 200));
       }
-    } catch (err) {
-      console.warn(`Shard Node ${i} is OFFLINE/UNREACHABLE: ${err.message}`);
+    }
+
+    if (share) {
+      allShares.push(share);
+    } else {
+      console.warn(`Shard Node ${i} is OFFLINE/UNREACHABLE`);
     }
   }
 

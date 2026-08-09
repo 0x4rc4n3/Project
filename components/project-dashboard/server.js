@@ -140,6 +140,21 @@ app.post('/api/shards/toggle-container', async (req, res) => {
   const result = await runCmd(cmd);
   
   if (result.success) {
+    // If starting a container, wait until its HTTP health endpoint responds OK (up to 3s)
+    if (action === 'start') {
+      const nodeIdMatch = targetContainer.match(/shard-(\d+)/);
+      if (nodeIdMatch) {
+        const nodeId = nodeIdMatch[1];
+        const healthUrl = `http://shard-node-${nodeId}:3000/health`;
+        for (let attempt = 0; attempt < 10; attempt++) {
+          try {
+            const hRes = await fetch(healthUrl, { signal: AbortSignal.timeout(600) });
+            if (hRes.ok) break;
+          } catch (e) {}
+          await new Promise(r => setTimeout(r, 250));
+        }
+      }
+    }
     res.json({ success: true, nodeName, targetContainer, action, message: `Container ${targetContainer} ${action}ed successfully.` });
   } else {
     res.status(500).json({ success: false, nodeName, targetContainer, action, error: result.stderr || `Failed to ${action} ${targetContainer}.` });
@@ -410,15 +425,30 @@ app.get('/api/shards/integrity', async (req, res) => {
 // API: Docker Logs
 app.get('/api/logs/:container', async (req, res) => {
   const container = req.params.container;
-  const validContainers = ['orderer.scatterid.com', 'peer0.issuer.scatterid.com', 'peer0.verifier.scatterid.com'];
+  const validContainers = [
+    'orderer.scatterid.com',
+    'peer0.issuer.scatterid.com',
+    'peer0.verifier.scatterid.com',
+    'scatterid-verification',
+    'scatterid-crypto',
+    'scatterid-vault',
+    'scatterid-dashboard',
+    'scatterid-shard-1',
+    'scatterid-shard-2',
+    'scatterid-shard-3',
+    'scatterid-shard-4',
+    'scatterid-shard-5'
+  ];
+
   if (!validContainers.includes(container)) {
     return res.status(400).json({ success: false, error: 'Invalid container name' });
   }
 
   const logs = await runCmd(`docker logs --tail 100 ${container}`);
-  const logText = (logs.stdout || logs.stderr || 'No log output available for ' + container).trim();
+  const logText = (logs.stdout || logs.stderr || ('No log output available for ' + container)).trim();
   res.json({
     success: true,
+    logs: logText,
     content: logText
   });
 });
