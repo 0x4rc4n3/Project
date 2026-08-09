@@ -75,6 +75,7 @@ async function fetchHealthStatus() {
 }
 
 function updateBadge(element, status) {
+  if (!element) return;
   element.textContent = status;
   element.className = 'status-badge'; // Reset classes
   
@@ -92,26 +93,73 @@ const refreshLogsBtn = document.getElementById('refresh-logs-btn');
 const containerLogSelect = document.getElementById('container-log-select');
 const logOutput = document.getElementById('log-output');
 
-refreshLogsBtn.addEventListener('click', async () => {
-  const container = containerLogSelect.value;
-  logOutput.textContent = `Fetching logs for ${container}...`;
-  
-  try {
-    const res = await fetch(`/api/logs/${container}`);
-    const data = await res.json();
-    if (data.success) {
-      logOutput.textContent = data.content || 'No logs available.';
-    } else {
-      logOutput.textContent = `Error: ${data.error}`;
+if (refreshLogsBtn) {
+  refreshLogsBtn.addEventListener('click', async () => {
+    const container = containerLogSelect.value;
+    logOutput.textContent = `Fetching live logs for ${container}...`;
+    
+    try {
+      const res = await fetch(`/api/logs/${container}`);
+      const data = await res.json();
+      if (data.success && data.content) {
+        logOutput.textContent = data.content;
+      } else {
+        logOutput.textContent = data.error || 'No log output available.';
+      }
+    } catch (err) {
+      logOutput.textContent = `Failed to connect to dashboard API: ${err.message}`;
     }
+  });
+}
+
+// Load 5-Node Shard Matrix & Integrity Inspector
+async function loadShardMatrix() {
+  const container = document.getElementById('shard-matrix-cards');
+  if (!container) return;
+
+  try {
+    const res = await fetch('/api/shards/integrity');
+    const data = await res.json();
+
+    if (!data.success || !data.nodes) {
+      container.innerHTML = `<div class="text-error p-3">Failed to query node shards: ${data.error || 'Unknown error'}</div>`;
+      return;
+    }
+
+    container.innerHTML = '';
+    data.nodes.forEach(node => {
+      const card = document.createElement('div');
+      card.className = `shard-node-card ${node.status.toLowerCase()}`;
+      
+      const kbSize = (node.sizeBytes / 1024).toFixed(1);
+      const statusBadge = node.status === 'HEALTHY' 
+        ? '<span class="badge green">HEALTHY</span>'
+        : (node.status === 'OFFLINE' ? '<span class="badge red">OFFLINE</span>' : '<span class="badge yellow">CORRUPTED</span>');
+
+      card.innerHTML = `
+        <div class="shard-node-header">
+          <span class="node-title">Node ${node.nodeId} (${node.dbName})</span>
+          ${statusBadge}
+        </div>
+        <div class="shard-node-metrics">
+          <div class="metric"><span class="label">Stored Shares:</span> <span class="val">${node.totalShares}</span></div>
+          <div class="metric"><span class="label">DB Size:</span> <span class="val">${kbSize} KB</span></div>
+          <div class="metric"><span class="label">SHA3 Integrity:</span> <span class="val ${node.integrityCheck === 'VALID' ? 'text-success' : 'text-error'}">${node.integrityCheck}</span></div>
+        </div>
+      `;
+      container.appendChild(card);
+    });
   } catch (err) {
-    logOutput.textContent = `Failed to connect to dashboard API: ${err.message}`;
+    container.innerHTML = `<div class="text-error p-3">Error loading shard matrix: ${err.message}</div>`;
   }
-});
+}
 
 // Load DB Explorer
 async function loadDatabaseExplorer() {
+  await loadShardMatrix();
+
   const tbody = document.getElementById('db-table-body');
+  if (!tbody) return;
   tbody.innerHTML = '<tr><td colspan="6" class="text-center">Loading database records...</td></tr>';
 
   try {
@@ -157,49 +205,52 @@ async function loadDatabaseExplorer() {
 const runDiagnosticBtn = document.getElementById('run-diagnostic-btn');
 const diagnosticsConsole = document.getElementById('diagnostics-console');
 
-runDiagnosticBtn.addEventListener('click', async () => {
-  diagnosticsConsole.innerHTML = '<div class="console-line info"><span class="console-line-content">Initializing test runner...</span></div>';
-  runDiagnosticBtn.disabled = true;
+if (runDiagnosticBtn) {
+  runDiagnosticBtn.addEventListener('click', async () => {
+    diagnosticsConsole.innerHTML = '<div class="console-line info"><span class="console-line-content">Initializing test runner...</span></div>';
+    runDiagnosticBtn.disabled = true;
 
-  try {
-    const res = await fetch('/api/diagnostics/run', { method: 'POST' });
-    const data = await res.json();
-    
-    diagnosticsConsole.innerHTML = '';
-    
-    // Simulate terminal typing output
-    let i = 0;
-    function printNextLine() {
-      if (i < data.logs.length) {
-        const item = data.logs[i];
-        const line = document.createElement('div');
-        line.className = `console-line ${item.status}`;
-        
-        const timestamp = new Date(item.timestamp).toLocaleTimeString();
-        line.innerHTML = `
-          <span class="console-line-meta">[${timestamp}] ${item.step}</span>
-          <span class="console-line-content">${item.detail}</span>
-        `;
-        diagnosticsConsole.appendChild(line);
-        diagnosticsConsole.scrollTop = diagnosticsConsole.scrollHeight;
-        
-        i++;
-        setTimeout(printNextLine, 600);
-      } else {
-        runDiagnosticBtn.disabled = false;
+    try {
+      const res = await fetch('/api/diagnostics/run', { method: 'POST' });
+      const data = await res.json();
+      
+      diagnosticsConsole.innerHTML = '';
+      
+      // Simulate terminal typing output
+      let i = 0;
+      function printNextLine() {
+        if (i < data.logs.length) {
+          const item = data.logs[i];
+          const line = document.createElement('div');
+          line.className = `console-line ${item.status}`;
+          
+          const timestamp = new Date(item.timestamp).toLocaleTimeString();
+          line.innerHTML = `
+            <span class="console-line-meta">[${timestamp}] ${item.step}</span>
+            <span class="console-line-content">${item.detail}</span>
+          `;
+          diagnosticsConsole.appendChild(line);
+          diagnosticsConsole.scrollTop = diagnosticsConsole.scrollHeight;
+          
+          i++;
+          setTimeout(printNextLine, 400);
+        } else {
+          runDiagnosticBtn.disabled = false;
+        }
       }
+      
+      printNextLine();
+    } catch (err) {
+      diagnosticsConsole.innerHTML += `<div class="console-line error"><span class="console-line-content">Test execution failed: ${err.message}</span></div>`;
+      runDiagnosticBtn.disabled = false;
     }
-    
-    printNextLine();
-  } catch (err) {
-    diagnosticsConsole.innerHTML += `<div class="console-line error"><span class="console-line-content">Test execution failed: ${err.message}</span></div>`;
-    runDiagnosticBtn.disabled = false;
-  }
-});
+  });
+}
 
 // Load Progress MD
 async function loadProgressLog() {
   const reader = document.getElementById('progress-md-reader');
+  if (!reader) return;
   reader.innerHTML = 'Loading Progress Log...';
 
   try {
@@ -211,47 +262,26 @@ async function loadProgressLog() {
       return;
     }
 
-    reader.innerHTML = parseMarkdown(data.content);
+    if (window.marked) {
+      reader.innerHTML = window.marked.parse(data.content);
+    } else {
+      reader.innerHTML = parseMarkdownFallback(data.content);
+    }
   } catch (err) {
     reader.innerHTML = `<span class="text-error">Connection error: ${err.message}</span>`;
   }
 }
 
-// Extremely simple Markdown to HTML parser
-function parseMarkdown(md) {
+function parseMarkdownFallback(md) {
   let html = md;
-  
-  // Replace headers
   html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
   html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
   html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
-  
-  // Replace bold
   html = html.replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>');
-  
-  // Replace backticks inline code
   html = html.replace(/`(.*?)`/gim, '<code>$1</code>');
-  
-  // Replace bullet points
   html = html.replace(/^\- (.*$)/gim, '<li>$1</li>');
-  html = html.replace(/^\* (.*$)/gim, '<li>$1</li>');
-  
-  // Wrap list items
-  // Since we did simple regex, this is a crude but effective styling for display
-  return html.split('\n').join('<br>');
+  return html;
 }
 
-// Initialization
-document.addEventListener('DOMContentLoaded', () => {
-  fetchHealthStatus();
-  
-  // Auto-refresh health every 15 seconds
-  setInterval(fetchHealthStatus, 15000);
-
-  // Initialize Mermaid
-  mermaid.initialize({
-    startOnLoad: true,
-    theme: 'dark',
-    securityLevel: 'loose'
-  });
-});
+// Initial fetch on page load
+fetchHealthStatus();

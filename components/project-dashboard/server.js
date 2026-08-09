@@ -6,6 +6,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import net from 'net';
+import { createHash } from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -250,6 +251,80 @@ app.get('/api/progress', async (req, res) => {
   }
 });
 
+// API: Multi-Node Shard Integrity Inspector
+app.get('/api/shards/integrity', (req, res) => {
+  try {
+    const candidateDirs = [
+      process.env.DB_DIR || '/app/data',
+      '/app/data',
+      path.resolve(__dirname, '../verification-api/data'),
+      path.resolve(__dirname, '../verification-api'),
+      '/app/verification-api',
+      '/app',
+      process.cwd()
+    ];
+
+    let foundBaseDir = candidateDirs.find(dir => fsSync.existsSync(path.join(dir, 'node_1.db')));
+    if (!foundBaseDir) {
+      foundBaseDir = path.resolve(__dirname, '../verification-api');
+    }
+
+    const nodeReports = [];
+    for (let i = 1; i <= 5; i++) {
+      const nodePath = path.join(foundBaseDir, `node_${i}.db`);
+      const exists = fsSync.existsSync(nodePath);
+      let sizeBytes = 0;
+      let totalShares = 0;
+      let status = 'HEALTHY';
+      let integrityCheck = 'VALID';
+
+      if (exists) {
+        try {
+          const stats = fsSync.statSync(nodePath);
+          sizeBytes = stats.size;
+
+          const nDb = new Database(nodePath, { readonly: true });
+          const countRow = nDb.prepare('SELECT COUNT(*) as count FROM shard_references').get();
+          totalShares = countRow ? countRow.count : 0;
+
+          // Check integrity of stored shares
+          const sampleShares = nDb.prepare('SELECT share_value, share_hash, share_checksum FROM shard_references LIMIT 10').all();
+          for (const s of sampleShares) {
+            const computedHash = createHash('sha3-256').update(s.share_value).digest('hex');
+            if (computedHash !== s.share_hash) {
+              integrityCheck = 'HASH_MISMATCH';
+              status = 'CORRUPTED';
+              break;
+            }
+          }
+          nDb.close();
+        } catch (e) {
+          status = 'ERROR';
+          integrityCheck = e.message;
+        }
+      } else {
+        status = 'OFFLINE';
+        integrityCheck = 'FILE_NOT_FOUND';
+      }
+
+      nodeReports.push({
+        nodeId: i,
+        dbName: `node_${i}.db`,
+        path: nodePath,
+        exists,
+        sizeBytes,
+        totalShares,
+        status,
+        integrityCheck
+      });
+    }
+
+    res.json({ success: true, baseDir: foundBaseDir, nodes: nodeReports });
+  } catch (err) {
+    res.json({ success: false, error: err.message, nodes: [] });
+  }
+});
+
 // API: Docker Logs
 app.get('/api/logs/:container', async (req, res) => {
   const container = req.params.container;
@@ -259,9 +334,10 @@ app.get('/api/logs/:container', async (req, res) => {
   }
 
   const logs = await runCmd(`docker logs --tail 100 ${container}`);
+  const logText = (logs.stdout || logs.stderr || 'No log output available for ' + container).trim();
   res.json({
-    success: logs.success,
-    content: logs.success ? logs.stdout : logs.stderr
+    success: true,
+    content: logText
   });
 });
 

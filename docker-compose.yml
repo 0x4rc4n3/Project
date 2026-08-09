@@ -67,6 +67,7 @@ services:
       - ./components/project-dashboard:/app
       - /app/node_modules
       - ./components/verification-api:/app/verification-api
+      - /var/run/docker.sock:/var/run/docker.sock
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
