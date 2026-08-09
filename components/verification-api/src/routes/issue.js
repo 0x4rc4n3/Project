@@ -14,7 +14,8 @@ export async function issueRoute(req, res) {
 
   let credential;
   try {
-    const response = await fetch('https://localhost:5001/package', {
+    const cryptoUrl = process.env.CRYPTO_SERVICE_URL || 'https://localhost:5001';
+    const response = await fetch(`${cryptoUrl}/package`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

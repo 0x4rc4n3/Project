@@ -75,8 +75,8 @@ def rotate_route():
 if __name__ == "__main__":
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     PROJECT_ROOT = os.path.dirname(BASE_DIR)
-    CERT_PATH = os.path.join(PROJECT_ROOT, "certs", "crypto-service.crt")
-    KEY_PATH = os.path.join(PROJECT_ROOT, "certs", "crypto-service.key")
+    CERT_PATH = '/app/certs/crypto-service.crt' if os.path.exists('/app/certs/crypto-service.crt') else os.path.join(BASE_DIR, '../certs/crypto-service.crt')
+    KEY_PATH = '/app/certs/crypto-service.key' if os.path.exists('/app/certs/crypto-service.key') else os.path.join(BASE_DIR, '../certs/crypto-service.key')
 
     if not os.path.exists(CERT_PATH) or not os.path.exists(KEY_PATH):
         raise FileNotFoundError(
@@ -85,5 +85,5 @@ if __name__ == "__main__":
         )
 
     # Run with HTTPS / SSL context
-    app.run(port=5001, debug=True, ssl_context=(CERT_PATH, KEY_PATH))
+    app.run(host='0.0.0.0', port=5001, debug=True, ssl_context=(CERT_PATH, KEY_PATH))
 

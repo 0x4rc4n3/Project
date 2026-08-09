@@ -3,140 +3,88 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ScatterID | System Control & Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <title>ScatterID Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
-  <!-- Load Mermaid.js for architecture diagrams -->
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 </head>
 <body>
-  <div class="glow-bg"></div>
-  
   <!-- Sidebar Navigation -->
   <nav class="sidebar">
     <div class="logo">
-      <span class="logo-icon">💠</span>
       <span class="logo-text">ScatterID</span>
-      <span class="badge badge-primary">v1.0</span>
     </div>
-    
     <ul class="nav-links">
-      <li><a href="#" class="nav-link active" data-tab="tab-overview">📊 Health Status</a></li>
-      <li><a href="#" class="nav-link" data-tab="tab-db">🗄 Ledger & DB Explorer</a></li>
-      <li><a href="#" class="nav-link" data-tab="tab-diagnostics">🧪 Diagnostics Console</a></li>
-      <li><a href="#" class="nav-link" data-tab="tab-architecture">🗺 Interactive Maps</a></li>
-      <li><a href="#" class="nav-link" data-tab="tab-progress">📝 Project Progress</a></li>
+      <li><a href="#" class="nav-link active" data-tab="tab-overview">Health Status</a></li>
+      <li><a href="#" class="nav-link" data-tab="tab-db">Ledger & DB Explorer</a></li>
+      <li><a href="#" class="nav-link" data-tab="tab-diagnostics">Diagnostics Console</a></li>
+      <li><a href="#" class="nav-link" data-tab="tab-architecture">Architecture Map</a></li>
+      <li><a href="#" class="nav-link" data-tab="tab-progress">Project Progress</a></li>
     </ul>
-
     <div class="sidebar-footer">
       <div class="system-time">
-        <span class="dot active"></span> Local Node Active
+        <span class="dot online"></span> Local Node Active
       </div>
     </div>
   </nav>
 
-  <!-- Main Content Container -->
+  <!-- Main Content -->
   <main class="main-content">
-    
-    <!-- Top Stats / Quick Indicators -->
     <header class="main-header">
       <div>
         <h1 id="page-title">Health Status</h1>
-        <p class="subtitle">Real-time status check of ScatterID modules and Hyperledger Fabric</p>
+        <p class="subtitle">Real‑time status of ScatterID services and Fabric network.</p>
       </div>
-      <button class="btn btn-primary" id="refresh-all-btn">🔄 Refresh Dashboard</button>
+      <button class="btn btn-primary" id="refresh-all-btn">Refresh Dashboard</button>
     </header>
 
-    <!-- Tab Content: Health & Status -->
+    <!-- Overview Tab -->
     <section id="tab-overview" class="tab-pane active">
       <div class="grid grid-3">
         <!-- API Status Card -->
-        <div class="card glass">
-          <div class="card-header">
-            <h3>Backend API Services</h3>
-            <span class="indicator-icon">🔌</span>
-          </div>
+        <div class="card">
+          <div class="card-header"><h3>Backend API Services</h3></div>
           <div class="status-list">
-            <div class="status-item">
-              <span>Verification API (Port 3000)</span>
-              <span class="status-badge" id="status-api">Checking...</span>
-            </div>
-            <div class="status-item">
-              <span>Crypto Service (Port 5001)</span>
-              <span class="status-badge" id="status-crypto">Checking...</span>
-            </div>
+            <div class="status-item"><span>Verification API (3000)</span><span class="status-dot" id="status-api"></span></div>
+            <div class="status-item"><span>Crypto Service (5001)</span><span class="status-dot" id="status-crypto"></span></div>
           </div>
         </div>
-
-        <!-- Blockchain Status Card -->
-        <div class="card glass">
-          <div class="card-header">
-            <h3>Fabric Blockchain Nodes</h3>
-            <span class="indicator-icon">⛓</span>
-          </div>
+        <!-- Fabric Status Card -->
+        <div class="card">
+          <div class="card-header"><h3>Fabric Nodes</h3></div>
           <div class="status-list">
-            <div class="status-item">
-              <span>Raft Orderer (Port 7050)</span>
-              <span class="status-badge" id="status-orderer">Checking...</span>
-            </div>
-            <div class="status-item">
-              <span>Issuer Peer (Port 7051)</span>
-              <span class="status-badge" id="status-issuer-peer">Checking...</span>
-            </div>
-            <div class="status-item">
-              <span>Verifier Peer (Port 8051)</span>
-              <span class="status-badge" id="status-verifier-peer">Checking...</span>
-            </div>
+            <div class="status-item"><span>Orderer (7050)</span><span class="status-dot" id="status-orderer"></span></div>
+            <div class="status-item"><span>Issuer Peer (7051)</span><span class="status-dot" id="status-issuer-peer"></span></div>
+            <div class="status-item"><span>Verifier Peer (8051)</span><span class="status-dot" id="status-verifier-peer"></span></div>
           </div>
         </div>
-
         <!-- Environment Card -->
-        <div class="card glass">
-          <div class="card-header">
-            <h3>Node Environment</h3>
-            <span class="indicator-icon">💻</span>
-          </div>
+        <div class="card">
+          <div class="card-header"><h3>Node Environment</h3></div>
           <div class="status-list">
-            <div class="status-item">
-              <span>Operating System</span>
-              <span class="status-val">Linux (Kali)</span>
-            </div>
-            <div class="status-item">
-              <span>Fabric Channel</span>
-              <span class="status-val text-accent">scatterid-channel</span>
-            </div>
-            <div class="status-item">
-              <span>Crypto Algorithm</span>
-              <span class="status-val text-primary">ML-DSA-65 / SHA3-256</span>
-            </div>
+            <div class="status-item"><span>OS</span><span class="status-val">Linux (Kali)</span></div>
+            <div class="status-item"><span>Fabric Channel</span><span class="status-val">scatterid-channel</span></div>
+            <div class="status-item"><span>Crypto Algo</span><span class="status-val">ML‑DSA‑65 / SHA3‑256</span></div>
           </div>
         </div>
       </div>
-
-      <!-- Live Logs Section -->
-      <div class="card glass log-card">
-        <div class="card-header">
-          <h3>Container Logs Monitor</h3>
-          <div class="log-controls">
-            <select id="container-log-select">
-              <option value="peer0.issuer.scatterid.com">peer0.issuer.scatterid.com</option>
-              <option value="peer0.verifier.scatterid.com">peer0.verifier.scatterid.com</option>
-              <option value="orderer.scatterid.com">orderer.scatterid.com</option>
-            </select>
-            <button class="btn btn-secondary btn-sm" id="refresh-logs-btn">Fetch Logs</button>
-          </div>
+      <!-- Logs Card -->
+      <div class="card log-card">
+        <div class="card-header"><h3>Container Logs</h3></div>
+        <div class="log-controls">
+          <select id="container-log-select">
+            <option value="peer0.issuer.scatterid.com">peer0.issuer.scatterid.com</option>
+            <option value="peer0.verifier.scatterid.com">peer0.verifier.scatterid.com</option>
+            <option value="orderer.scatterid.com">orderer.scatterid.com</option>
+          </select>
+          <button class="btn btn-secondary btn-sm" id="refresh-logs-btn">Fetch Logs</button>
         </div>
-        <div class="log-container">
-          <pre id="log-output">Select a container and click 'Fetch Logs'</pre>
-        </div>
+        <div class="log-container"><pre id="log-output">Select a container and click ‘Fetch Logs’</pre></div>
       </div>
     </section>
 
-    <!-- Tab Content: DB Explorer -->
+    <!-- DB Explorer Tab -->
     <section id="tab-db" class="tab-pane">
-      <div class="card glass">
         <div class="card-header">
           <h3>Issued Credentials & Blockchain Anchors</h3>
           <p class="subtitle">Direct visualization of SQLite DB records synchronized with Hyperledger Fabric State</p>

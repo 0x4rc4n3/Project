@@ -60,7 +60,16 @@ export async function verifyRoute(req, res) {
   // Integrity check: verify each share's hash before trusting it
   const validShares = storedShares.filter((row) => {
     const computedHash = createHash('sha3-256').update(row.share_value).digest('hex');
-    return computedHash === row.share_hash;
+    if (computedHash !== row.share_hash) return false;
+
+    // Validate the SHA-256 checksum appended by fragmentation module
+    if (row.share_checksum) {
+      const coreShare = `${row.share_index}-${row.share_value}`;
+      const computedChecksum = createHash('sha256').update(coreShare).digest('hex');
+      if (computedChecksum !== row.share_checksum) return false;
+    }
+    
+    return true;
   });
 
   const corruptedCount = storedShares.length - validShares.length;
@@ -94,7 +103,8 @@ export async function verifyRoute(req, res) {
   };
 
   try {
-    const response = await fetch('https://localhost:5001/unpackage', {
+    const cryptoUrl = process.env.CRYPTO_SERVICE_URL || 'https://localhost:5001';
+    const response = await fetch(`${cryptoUrl}/unpackage`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

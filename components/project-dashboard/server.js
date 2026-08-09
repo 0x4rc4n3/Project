@@ -215,6 +215,6 @@ app.get('/api/logs/:container', async (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`ScatterID Project Dashboard running at http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`ScatterID Project Dashboard running at http://0.0.0.0:${PORT}`);
 });

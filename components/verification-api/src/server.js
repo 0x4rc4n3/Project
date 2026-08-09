@@ -11,6 +11,6 @@ app.get('/status/:id', statusRoute);
 app.post('/verify', verifyRoute);
 
 const PORT = 3000;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Verification API listening on port ${PORT}`);
 });

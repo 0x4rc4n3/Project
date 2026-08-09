@@ -1,98 +1,61 @@
-# ScatterID / Crypto Project — Technical Context & Progress Log
+# ScatterID Technical Progress & Architecture Ledger
 
-> **Purpose of this file:** Paste this into a new AI chat (or read it yourself) to restore full context instantly. This is the persistent memory that survives across sessions.
-
----
-
-## 1. What This Project Is
-
-Post-quantum, sharded identity credential verification infrastructure. Core pitch: identity data is permanent (unlike passwords), so it needs cryptography that survives future quantum computers, and it should never exist as one complete, stealable copy anywhere.
-
-**Core mechanism:**
-1. A claim (e.g. `{"student": "X", "degree": "Y"}`) gets hashed (SHA3-256) and signed with a post-quantum signature (ML-DSA-65).
-2. The signed data is split into `k`-of-`n` Shamir secret shares (default k=3, n=5) — no single storage location ever holds a complete, usable credential.
-3. A verifier can check validity (`valid: true/false`) without ever seeing the raw claim data — reconstruction-less verification.
-4. A proof hash gets anchored on a private Hyperledger Fabric blockchain for tamper-evidence.
-
-**Team status:** Solo — just the user + AI assistant.
+This document serves as the central context and progress ledger for the ScatterID post-quantum sharded identity verification system.
 
 ---
 
-## 2. Locked Architecture Decisions (from ADR)
+## 1. System Overview
 
-| Decision | Value | Notes |
+ScatterID is a post-quantum, sharded credential verification infrastructure designed to eliminate single points of failure in identity storage. Raw claims are never stored in plain text or single monolithic databases.
+
+### Core Cryptographic Lifecycle
+1. **Issuance Request**: Client submits raw credential JSON to the Verification API gateway.
+2. **Packaging**: The Python `crypto-service` computes a SHA3-256 data hash, signs it using post-quantum signature algorithm **ML-DSA-65**, and splits the signature/claim payload into $k$-of-$n$ Shamir secret shares ($3$-of-$5$ default) with per-share SHA-256 checksums.
+3. **Sharded Multi-DB Storage**: The Verification API routes each share to a separate isolated SQLite database node (`node_1.db` through `node_5.db`).
+4. **Ledger Anchoring**: The credential ID, data hash, issuer MSP ID, and ISO timestamp are anchored on a private Hyperledger Fabric blockchain (`scatterid-channel`, `scatterproof` chaincode).
+5. **Reconstruction-less Verification**: A verifier queries the Verification API with a `credentialId`. The API verifies the ledger anchor, retrieves $\ge 3$ valid shares from isolated SQLite databases (validating SHA-256 checksums and SHA3-256 hashes), and requests cryptographic signature verification from `crypto-service`.
+
+---
+
+## 2. Architecture & Decision Matrix
+
+| Layer | Technology | Operational Details |
 |---|---|---|
-| PQC signature algorithm | **ML-DSA-65** | Confirmed exact string works via `oqs.get_enabled_sig_mechanisms()` on real liboqs build |
-| Hash function | SHA3-256 | Quantum-resistant enough |
-| Secret-sharing scheme | **Shamir's Secret Sharing**, k=3, n=5 (MVP default) | Using `sslib` Python library |
-| Backend language | **Node.js** (Express) | `components/verification-api` on port 3000 |
-| Crypto language | **Python** | `components/crypto/fragmentation-module` + `components/crypto/crypto-service` on port 5001 |
-| Blockchain | Hyperledger Fabric (private, permissioned) | **Custom custom-built network** on port 7050 (`scatterid-channel`), using custom MSPs (`IssuerMSP`, `VerifierMSP`) |
-| Control Dashboard | Node.js Express dashboard on port 4000 | `components/project-dashboard` |
-| Database | SQLite (dev), Postgres later | Currently SQLite only (stored in `components/verification-api/credentials.db`) |
+| Post-Quantum Cryptography | **ML-DSA-65** (`liboqs`) | Quantum-resistant digital signatures. Keys managed dynamically in Vault. |
+| Key Management | **HashiCorp Vault** | KV v2 secrets engine on port 8200 storing active ML-DSA-65 keypair. |
+| Secret Sharing | **Shamir's Secret Sharing** (`sslib`) | $3$-of-$5$ threshold scheme. Appends SHA-256 integrity checksums to share strings. |
+| API Gateway & Storage | **Node.js / Express / better-sqlite3** | Port 3000. Manages 5 separate SQLite database instances (`node_1.db`..`node_5.db`). |
+| Crypto Microservice | **Python 3.13 / Flask** | Port 5001 (HTTPS/TLS). Exposes `/package`, `/unpackage`, and `/rotate` endpoints. |
+| Immutable Audit Ledger | **Hyperledger Fabric v2.5** | Channel `scatterid-channel`, Chaincode `scatterproof`. Raft orderer (7050), Peers (7051, 8051). |
+| Control Dashboard | **Node.js / Express** | Port 4000. Dark-mode developer interface, DB explorer, and E2E diagnostic tester. |
 
 ---
 
-## 3. What's Actually Built and Working (Verified, Not Assumed)
+## 3. Milestone Completion Ledger
 
-### `components/blockchain/` (Custom Go Chaincode & Network Setup) — working, fully integrated
-- Custom local containerized network running a Raft orderer (`orderer.scatterid.com`) and two organizations: `IssuerOrg` (`IssuerMSP`) and `VerifierOrg` (`VerifierMSP`) with internal TLS active under `components/blockchain/fabric-network/`.
-- Smart contract (`components/blockchain/chaincode/src/scatterproof.go`) committed and committed to `scatterid-channel` across both peers.
-- Automated idempotent control scripts: `start.sh` and `stop.sh` created to set up certificates, genesis block, containers, channel, and chaincode.
+### Phase 1: Core Cryptography & Multi-Node Architecture (Completed)
+- [x] **Post-Quantum Crypto Integration**: Integrated `liboqs` with Python wrappers supporting ML-DSA-65 signatures.
+- [x] **Vault KMS Engine**: Implemented `kms.py` interfacing with HashiCorp Vault over REST to store and rotate ML-DSA-65 keypairs dynamically.
+- [x] **Shamir Fragmentation & Checksums**: Developed `sslib`-backed secret sharing with per-share SHA-256 integrity checksums (`<index>-<share_value>:<checksum>`).
+- [x] **Multi-Database Shard Isolation**: Refactored `verification-api` database layer to maintain 5 distinct SQLite database connections (`node_1.db` through `node_5.db`), distributing shares deterministically across isolated database instances.
+- [x] **Private Hyperledger Fabric Network**: Standup of custom 2-org Fabric network (`IssuerMSP`, `VerifierMSP`) with `scatterproof` Go chaincode for proof anchoring and state queries.
+- [x] **Container Orchestration & Native Module Linking**: Dockerized services using Debian-based Node (`node:24`) and Python environments, configured `libnode-dev` for native C bindings (`better-sqlite3`), and established inter-container TLS.
+- [x] **Developer Control Dashboard**: Built lightweight, high-contrast Vercel/HashiCorp inspired dashboard on port 4000 with real-time service health monitoring, multi-DB inspection, and interactive E2E smoke tests.
 
-### `components/project-dashboard/` (Node.js/Express, port 4000) — working, fully integrated
-- Stunning custom-built dark-mode, glassmorphic Control Dashboard.
-- Live health status monitor of APIs (Verification, Crypto) and Fabric nodes.
-- Direct SQLite DB explorer showcasing synchronized credentials and shard tables.
-- Interactive E2E diagnostics smoke tester triggering a complete transaction lifecycle (Issue -> Shard -> Sign -> Anchor -> Verify) with simulated typing console logs.
-- Dynamic Mermaid-rendered architecture map showing cryptographic and network trust boundaries.
+### Phase 2: Security Hardening & Resilience (In Progress)
+- [ ] **Automated Key Rotation & Expiry**: Scheduled background rotation of ML-DSA-65 keypairs with backward-compatible signature validation against archived public keys in Vault.
+- [ ] **Fault Tolerance & Node Drop Recovery**: Automated shard reconstruction tests under simulated loss or corruption of up to 2 database nodes.
+- [ ] **RBAC & Token Authentication for Verification API**: Standardize OAuth2 / JWT client credentials for `/issue` and `/verify` endpoints.
 
-### `components/crypto/fragmentation-module/` (Python) — functionally complete
-- PQC signing (ML-DSA-65) and Shamir secret sharing (k=3, n=5) using `sslib` with hex-encoded bytes.
-- Fully verified via pytest tests.
-
-### `components/crypto/crypto-service/` (Python Flask, port 5001) — working, secured
-- Exposes `/package`, `/unpackage`, and `/rotate` endpoints over HTTPS.
-- Integrated a production-grade KMS (`kms.py`) that stores and retrieves the ML-DSA-65 signing keypair directly within HashiCorp Vault KV storage (using the official `hvac` SDK). No keys are ever written to disk or environment variables.
-- Enforces Bearer token authorization header using the `CRYPTO_SERVICE_API_KEY` env variable.
-- Utilizes self-signed certificates stored in `components/crypto/certs/`.
-
-### `components/verification-api/` (Node.js/Express, port 3000) — working, core complete
-- Normalized database schema (SQLite) storing credentials and shard references.
-- `/issue` and `/verify` routes fully integrated with `crypto-service` and custom Fabric client gateway (`src/chain/fabric.js`).
-- Communication with `crypto-service` is fully secured using HTTPS and API Key Authorization. Trusts the generated Root CA by setting the `NODE_EXTRA_CA_CERTS` environment variable.
+### Phase 3: Distributed Cloud Rollout (Planned)
+- [ ] **Infrastructure-as-Code (Terraform & Ansible)**: Provision multi-region node infrastructure in `components/infra/`.
+- [ ] **Postgres Shard Migration**: Transition local SQLite shard files (`node_i.db`) to independent Postgres instances with mutual TLS.
 
 ---
 
-## 4. Known Technical Debt (Documented, Not Forgotten)
+## 4. Verification & Testing Coverage
 
-- **Ansible/Terraform IaC files** in `components/infra/` are currently skeleton folders waiting for Phase 3 rollout config.
-
----
-
-## 5. Real Bugs Hit and Fixed (Useful Debugging Pattern Library)
-
-1. **`ModuleNotFoundError`** — running scripts from wrong working directory.
-2. **`pytest` vs `python3 -m pytest`** — bare `pytest` resolved to a different system-wide install.
-3. **JS `const` temporal dead zone** — used `app.get` before `const app = express()` was declared.
-4. **Python `bytes` not JSON-serializable** — hex-encoded Shamir shares.
-5. **JS Uint8Array.toString() comma separation** — fixed by using `TextDecoder` to parse response buffers.
-6. **Fabric test-network hardcoding** — replaced generic `Org1`/`Org2` from `fabric-samples` with dedicated custom organizations (`IssuerMSP`, `VerifierMSP`) and corrected connection certs in the gateway.
-
----
-
-## 6. Environment / Setup Facts (So You Don't Re-Discover These)
-
-- OS: Kali Linux
-- Project root: `~/ScatterID`
-- Node version: v24.15.0 (supports ES Modules)
-- Python: 3.13.12, using per-module `venv/` folders
-- liboqs: built from source
-
----
-
-## 7. Immediate Open Question (Where We Left Off)
-
-- Next step option: Start the local secure network and test E2E issuance and verification (including running the diagnostics smoke test via the dashboard).
-- Next step option: Scale out the automated cloud playbooks under `infra/` using Terraform and Ansible to mimic the local custom Fabric configuration on cloud nodes (Phase 3).
-
+1. **Native Dynamic Linking Test**: Verified `better-sqlite3` native C++ bindings under Node 24 standard distribution with `libnode-dev`.
+2. **Cryptographic Round-Trip Test**: Verified `/package` and `/unpackage` operations using ML-DSA-65 signatures and Shamir 3-of-5 share reconstruction.
+3. **Shard Integrity Checksum Test**: Verified detection and rejection of tampered share strings during the `/verify` request lifecycle.
+4. **Hyperledger Fabric Chaincode Verification**: Verified `AnchorProof` transaction submission and `QueryProof` evaluation over gRPC (`@hyperledger/fabric-gateway`).

@@ -1,0 +1,71 @@
+services:
+  vault:
+    image: hashicorp/vault:latest
+    container_name: scatterid-vault
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: "dev-root-token"
+      VAULT_ADDR: "http://127.0.0.1:8200"
+    cap_add:
+      - IPC_LOCK
+    networks:
+      - scatterid_net
+
+  crypto-service:
+    build:
+      context: ./components/crypto/crypto-service
+      dockerfile: Dockerfile
+    container_name: scatterid-crypto
+    ports:
+      - "5001:5001"
+    environment:
+      VAULT_ADDR: "http://vault:8200"
+      VAULT_TOKEN: "dev-root-token"
+      CRYPTO_SERVICE_API_KEY: "dev-secret-key-123"
+    depends_on:
+      - vault
+    volumes:
+      - ./components/crypto/certs:/app/certs
+    networks:
+      - scatterid_net
+
+  verification-api:
+    build:
+      context: ./components/verification-api
+      dockerfile: Dockerfile
+    container_name: scatterid-verification
+    ports:
+      - "3000:3000"
+    environment:
+      CRYPTO_SERVICE_API_KEY: "dev-secret-key-123"
+      CRYPTO_SERVICE_URL: "https://crypto-service:5001"
+      NODE_EXTRA_CA_CERTS: "/app/certs/crypto-service.crt"
+    depends_on:
+      - crypto-service
+    volumes:
+      - ./components/crypto/certs:/app/certs
+      - verification_data:/app/data
+    networks:
+      - scatterid_net
+
+  project-dashboard:
+    build:
+      context: ./components/project-dashboard
+      dockerfile: Dockerfile
+    container_name: scatterid-dashboard
+    ports:
+      - "4000:4000"
+    environment:
+      VERIFICATION_API_URL: "http://verification-api:3000"
+    volumes:
+      - ./Progress.md:/app/Progress.md
+    networks:
+      - scatterid_net
+
+networks:
+  scatterid_net:
+    driver: bridge
+
+volumes:
+  verification_data:
