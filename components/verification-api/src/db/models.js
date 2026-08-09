@@ -67,6 +67,9 @@ for (let i = 1; i <= NUM_NODES; i++) {
 }
 
 const SHARD_NODE_API_KEY = getConfig('security.shard_node_api_key', process.env.SHARD_NODE_API_KEY);
+if (!SHARD_NODE_API_KEY) {
+  throw new Error("CRITICAL: SHARD_NODE_API_KEY is not configured. For security, the verification gateway cannot start without it.");
+}
 
 function getAuthHeaders(extraHeaders = {}) {
   const headers = { 'Content-Type': 'application/json', ...extraHeaders };

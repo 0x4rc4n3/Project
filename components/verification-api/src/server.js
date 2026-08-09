@@ -16,13 +16,23 @@ app.get('/credentials', async (req, res) => {
     const credentials = await getAllCredentials();
     res.json({ success: true, credentials });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message, credentials: [] });
+    console.error('Failed to get credentials:', err.stack || err.message);
+    res.status(500).json({ success: false, error: 'Internal Server Error', credentials: [] });
   }
 });
 app.post('/heal-shards', async (req, res) => {
-  const { nodeId } = req.body || {};
-  const events = await healShards(nodeId);
-  res.json({ success: true, events });
+  try {
+    const { nodeId } = req.body || {};
+    const parsedNodeId = parseInt(nodeId, 10);
+    if (isNaN(parsedNodeId) || parsedNodeId < 1 || parsedNodeId > 5) {
+      return res.status(400).json({ success: false, error: 'Invalid parameter: nodeId must be an integer between 1 and 5' });
+    }
+    const events = await healShards(parsedNodeId);
+    res.json({ success: true, events });
+  } catch (err) {
+    console.error('Failed to heal shards:', err.stack || err.message);
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
 });
 
 const PORT = 3000;
