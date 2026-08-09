@@ -90,21 +90,58 @@ app.get('/api/status', async (req, res) => {
 // API: SQLite Credentials List
 app.get('/api/credentials', (req, res) => {
   try {
-    const db = new Database(dbPath, { fileMustExist: true });
-    
-    // Get credentials
+    const candidateDirs = [
+      path.resolve(__dirname, 'verification-api'),
+      path.resolve(__dirname, '../verification-api'),
+      '/app/verification-api',
+      '/app',
+      process.cwd()
+    ];
+
+    let foundBaseDir = null;
+    let foundPrimaryDb = null;
+
+    for (const dir of candidateDirs) {
+      const node1 = path.join(dir, 'node_1.db');
+      const credDb = path.join(dir, 'credentials.db');
+      if (fsSync.existsSync(node1)) {
+        foundBaseDir = dir;
+        foundPrimaryDb = node1;
+        break;
+      } else if (fsSync.existsSync(credDb)) {
+        foundBaseDir = dir;
+        foundPrimaryDb = credDb;
+        break;
+      }
+    }
+
+    if (!foundPrimaryDb) {
+      return res.json({ success: false, error: 'Database files not found on disk yet', credentials: [] });
+    }
+
+    const db = new Database(foundPrimaryDb, { readonly: true });
     const credentials = db.prepare('SELECT * FROM credentials ORDER BY issued_at DESC').all();
-    
-    // Get shards for each
+    db.close();
+
     const credentialsWithShards = credentials.map(cred => {
-      const shards = db.prepare('SELECT share_index, share_hash FROM shard_references WHERE credential_id = ?').all(cred.id);
+      const allShards = [];
+      for (let i = 1; i <= 5; i++) {
+        const nodePath = path.join(foundBaseDir, `node_${i}.db`);
+        if (fsSync.existsSync(nodePath)) {
+          try {
+            const nDb = new Database(nodePath, { readonly: true });
+            const rows = nDb.prepare('SELECT share_index, share_hash FROM shard_references WHERE credential_id = ?').all(cred.id);
+            allShards.push(...rows);
+            nDb.close();
+          } catch (e) {}
+        }
+      }
       return {
         ...cred,
-        shards
+        shards: allShards.sort((a, b) => a.share_index - b.share_index)
       };
     });
 
-    db.close();
     res.json({ success: true, credentials: credentialsWithShards });
   } catch (err) {
     res.json({ success: false, error: err.message, credentials: [] });
@@ -193,8 +230,19 @@ app.post('/api/diagnostics/run', async (req, res) => {
 // API: Get Progress and Docs
 app.get('/api/progress', async (req, res) => {
   try {
-    const progressPath = path.resolve(__dirname, '../../Progress.md');
-    const content = await fs.readFile(progressPath, 'utf8');
+    const candidatePaths = [
+      '/app/Progress.md',
+      path.resolve(__dirname, 'Progress.md'),
+      path.resolve(__dirname, '../../Progress.md'),
+      path.resolve(process.cwd(), 'Progress.md')
+    ];
+
+    const validPath = candidatePaths.find(p => fsSync.existsSync(p));
+    if (!validPath) {
+      return res.json({ success: false, error: 'Progress.md not found on disk' });
+    }
+
+    const content = await fs.readFile(validPath, 'utf8');
     res.json({ success: true, content });
   } catch (err) {
     res.json({ success: false, error: err.message });

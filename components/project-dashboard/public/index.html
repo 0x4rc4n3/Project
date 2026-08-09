@@ -198,36 +198,36 @@ graph TD
     classDef purple fill:#190e2b,stroke:#a18cd1,stroke-width:1.5px,color:#fbc2eb;
     classDef amber fill:#241300,stroke:#f59e0b,stroke-width:1.5px,color:#f59e0b;
 
-    subgraph ClientSDK ["Client Context"]
-        SDK["SDK / client.js"]:::default
+    subgraph ClientSDK["Client Context"]
+        SDK["SDK client.js"]:::default
     end
 
-    subgraph API ["Express verification-api (Port 3000)"]
-        Server["Express Server"]:::cyan
-        DB["SQLite DB: credentials.db"]:::cyan
+    subgraph API["Express Verification API"]
+        Server["Express Server Port 3000"]:::cyan
+        DB["Multi-Node SQLite Shards"]:::cyan
         FabricClient["Fabric Gateway Client"]:::cyan
     end
 
-    subgraph Crypto ["Flask crypto-service (Port 5001)"]
-        Flask["Flask Server"]:::purple
-        LibOQS["liboqs-python (ML-DSA-65)"]:::purple
-        SSLib["sslib (Shamir k=3/n=5)"]:::purple
+    subgraph Crypto["Flask Crypto Service"]
+        Flask["Flask Server Port 5001"]:::purple
+        LibOQS["liboqs-python ML-DSA-65"]:::purple
+        SSLib["sslib Shamir 3-of-5"]:::purple
         KMS["KMS Module"]:::purple
     end
 
-    subgraph KMSStore ["KMS Private Key Storage"]
-        Vault["HashiCorp Vault (Port 8200)"]:::amber
+    subgraph KMSStore["KMS Private Key Storage"]
+        Vault["HashiCorp Vault Port 8200"]:::amber
     end
 
-    subgraph Fabric ["Custom Fabric network (scatterid-channel)"]
-        Orderer["orderer.scatterid.com (Port 7050)"]:::green
-        PeerIssuer["peer0.issuer.scatterid.com (Port 7051)"]:::green
-        PeerVerifier["peer0.verifier.scatterid.com (Port 8051)"]:::green
-        CC["scatterproof.go (Chaincode)"]:::green
+    subgraph Fabric["Custom Fabric Network"]
+        Orderer["Raft Orderer Port 7050"]:::green
+        PeerIssuer["Issuer Peer Port 7051"]:::green
+        PeerVerifier["Verifier Peer Port 8051"]:::green
+        CC["scatterproof Go Chaincode"]:::green
     end
 
     SDK -->|"1. POST /issue"| Server
-    Server -->|"2. POST /package (HTTPS + Bearer API Key)"| Flask
+    Server -->|"2. POST /package"| Flask
     
     Flask -->|"KMS Reconstruct Key"| KMS
     KMS <-->|"Load Key"| Vault
@@ -236,21 +236,21 @@ graph TD
     Flask -->|"Splits into Shards"| SSLib
     Flask -->|"Returns JSON"| Server
     
-    Server -->|"3. Save Shard Ref & Hash"| DB
+    Server -->|"3. Save Shard References"| DB
     Server -->|"4. AnchorProof"| FabricClient
     FabricClient -->|"gRPC Mutual TLS"| PeerIssuer
     PeerIssuer -->|"Commit to Ledger"| Orderer
     PeerVerifier -->|"Sync State"| Orderer
-    PeerIssuer -->|"Executes CC"| CC
-    PeerVerifier -->|"Executes CC"| CC
+    PeerIssuer -->|"Executes Chaincode"| CC
+    PeerVerifier -->|"Executes Chaincode"| CC
 
     SDK -->|"5. POST /verify"| Server
-    Server -->|"6. Query Ledger / Verify"| FabricClient
+    Server -->|"6. Query Ledger"| FabricClient
     FabricClient -->|"Read Proof"| PeerVerifier
-    Server -->|"7. POST /unpackage (HTTPS + Bearer API Key)"| Flask
+    Server -->|"7. POST /unpackage"| Flask
     Flask -->|"Reconstructs Credential"| SSLib
     Flask -->|"Verifies PQC Sig"| LibOQS
-    Server -->|"Returns Valid status"| SDK
+    Server -->|"Returns Valid Status"| SDK
           </pre>
         </div>
       </div>
