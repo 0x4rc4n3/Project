@@ -25,6 +25,27 @@ app.get('/demo', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/demo.html'));
 });
 
+// Proxy route for real backend verification
+app.post('/api/verify', async (req, res) => {
+  const { credentialId } = req.body;
+  if (!credentialId) {
+    return res.status(400).json({ error: 'Missing credentialId' });
+  }
+
+  try {
+    const response = await fetch(`${VERIFICATION_API_URL}/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credentialId }),
+    });
+
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    res.status(500).json({ error: `Verification API unreachable: ${err.message}` });
+  }
+});
+
 // Path to SQLite DB
 const dbPath = process.env.SQLITE_DB_PATH || path.resolve(__dirname, '../verification-api/credentials.db');
 

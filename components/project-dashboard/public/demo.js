@@ -1,4 +1,4 @@
-// ScatterID Enterprise Presentation Portal JS (Standalone + Dashboard Tab)
+// ScatterID Enterprise Presentation Portal JS (Real Backend Integration)
 
 document.addEventListener('DOMContentLoaded', () => {
   initStandaloneDemo();
@@ -27,7 +27,7 @@ function initStandaloneDemo() {
       loadShardTelemetry('telemetry-shard-matrix');
     });
 
-    loadSampleCredentials('sample-credentials-list', 'credential-input', verifyCredentialStandalone);
+    loadSampleCredentials('sample-credentials-list', 'credential-input');
     loadShardTelemetry('telemetry-shard-matrix');
 
     const btnVerify = document.getElementById('btn-run-verify');
@@ -68,7 +68,7 @@ function initTabDemo() {
       loadShardTelemetry('tab-telemetry-shard-matrix');
     });
 
-    loadSampleCredentials('tab-sample-credentials-list', 'tab-credential-input', verifyCredentialTab);
+    loadSampleCredentials('tab-sample-credentials-list', 'tab-credential-input');
     loadShardTelemetry('tab-telemetry-shard-matrix');
 
     const btnVerify = document.getElementById('tab-btn-run-verify');
@@ -87,8 +87,8 @@ function initTabDemo() {
   }
 }
 
-// Load Sample Credentials
-async function loadSampleCredentials(listContainerId, inputId, verifyFn) {
+// Load Sample Credentials without auto-verifying (waits for user button click)
+async function loadSampleCredentials(listContainerId, inputId) {
   const container = document.getElementById(listContainerId);
   if (!container) return;
 
@@ -102,6 +102,7 @@ async function loadSampleCredentials(listContainerId, inputId, verifyFn) {
         const pill = document.createElement('span');
         pill.className = 'sample-pill';
         pill.textContent = row.id.substring(0, 18) + '...';
+        pill.title = `Click to set input ID to ${row.id}`;
         pill.addEventListener('click', () => {
           const input = document.getElementById(inputId);
           if (input) input.value = row.id;
@@ -144,6 +145,7 @@ async function verifyCredentialTab(credentialId) {
   );
 }
 
+// Real Backend Verification Call
 async function genericVerify(credentialId, resultPanelId, badgeId, issuedAtId, algoId, shardsId, anchorStatusId, txId, btnId) {
   const resultPanel = document.getElementById(resultPanelId);
   const statusBadge = document.getElementById(badgeId);
@@ -158,36 +160,43 @@ async function genericVerify(credentialId, resultPanelId, badgeId, issuedAtId, a
 
   if (btnVerify) {
     btnVerify.disabled = true;
-    btnVerify.textContent = 'Verifying...';
+    btnVerify.textContent = 'Verifying Backend...';
   }
 
   try {
-    const resCreds = await fetch('/api/credentials');
-    const credsData = await resCreds.json();
-    const matchedRecord = credsData.credentials ? credsData.credentials.find(c => c.id === credentialId) : null;
+    // REAL POST request to backend verification gateway (/api/verify -> verification-api:3000/verify)
+    const resVerify = await fetch('/api/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credentialId }),
+    });
 
+    const verifyData = await resVerify.json();
     resultPanel.classList.remove('hidden');
 
-    if (matchedRecord) {
+    if (resVerify.ok && verifyData.valid) {
       statusBadge.className = 'badge-status-box valid';
       statusBadge.innerHTML = '<span class="status-icon">✓</span> <span class="status-text">CRYPTOGRAPHICALLY VALIDATED</span>';
 
-      if (issuedAt) issuedAt.textContent = `Issued: ${new Date(matchedRecord.issued_at).toLocaleString()}`;
-      if (algoEl) algoEl.textContent = `${matchedRecord.algorithm} (NIST FIPS 204)`;
-      if (shardsEl) shardsEl.textContent = 'k = 3 of n = 5 Shards Validated';
-      if (anchorStatusEl) anchorStatusEl.textContent = `Anchored (${matchedRecord.status.toUpperCase()})`;
-      if (txIdEl) txIdEl.textContent = matchedRecord.anchor_tx_id || '07acf10ac6210a33e284000102b489c4501a47a78c4';
+      if (issuedAt) issuedAt.textContent = `Issued: ${new Date(verifyData.issuedAt || Date.now()).toLocaleString()}`;
+      if (algoEl) algoEl.textContent = 'ML-DSA-65 (NIST FIPS 204)';
+      if (shardsEl) shardsEl.textContent = 'Shamir Secret Threshold Met (>= 3 Live Shards Validated)';
+      if (anchorStatusEl) anchorStatusEl.textContent = `Fabric Anchor (${(verifyData.anchorStatus || 'active').toUpperCase()})`;
+      if (txIdEl) txIdEl.textContent = credentialId;
     } else {
-      statusBadge.className = 'badge-status-box valid';
-      statusBadge.innerHTML = '<span class="status-icon">✓</span> <span class="status-text">PROOF ANCHORED & VERIFIED</span>';
+      // Verification Failed (e.g. Insufficient Shares due to offline/compromised nodes)
+      statusBadge.className = 'badge-status-box invalid';
+      const failReason = verifyData.reason || verifyData.error || 'Verification failed on backend';
+      statusBadge.innerHTML = `<span class="status-icon">✕</span> <span class="status-text">VERIFICATION FAILED: ${failReason}</span>`;
 
       if (issuedAt) issuedAt.textContent = `Timestamp: ${new Date().toLocaleString()}`;
-      if (algoEl) algoEl.textContent = 'ML-DSA-65 (NIST FIPS 204)';
-      if (shardsEl) shardsEl.textContent = '3-of-5 Secret Shares Intact';
-      if (anchorStatusEl) anchorStatusEl.textContent = 'Active Ledger Anchor';
+      if (algoEl) algoEl.textContent = 'ML-DSA-65 Signature Check Failed';
+      if (shardsEl) shardsEl.textContent = failReason;
+      if (anchorStatusEl) anchorStatusEl.textContent = `Anchor Status: ${verifyData.anchorStatus || 'FAILED'}`;
       if (txIdEl) txIdEl.textContent = credentialId;
     }
   } catch (err) {
+    resultPanel.classList.remove('hidden');
     statusBadge.className = 'badge-status-box invalid';
     statusBadge.innerHTML = `<span class="status-icon">✕</span> <span class="status-text">VERIFICATION ERROR: ${err.message}</span>`;
   } finally {

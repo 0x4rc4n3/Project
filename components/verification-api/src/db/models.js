@@ -77,22 +77,17 @@ export async function createCredential(record, shares) {
 
     if (nodeIndex >= 0 && nodeIndex < NUM_NODES) {
       const nodeUrl = getShardNodeUrl(shareIndex);
-      let dispatchedHttp = false;
-
       try {
-        const response = await fetch(`${nodeUrl}/shard`, {
+        await fetch(`${nodeUrl}/shard`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ record, share })
+          body: JSON.stringify({ record, share }),
+          signal: AbortSignal.timeout(2000)
         });
-        if (response.ok) {
-          dispatchedHttp = true;
-        }
       } catch (err) {
-        // Fallback to local SQLite instance if microservice HTTP request fails
+        console.warn(`Failed to dispatch share ${shareIndex} to ${nodeUrl}:`, err.message);
       }
 
-      // Always write to local node DB fallback
       const { db, stmts } = nodes[nodeIndex];
       const shareHash = createHash('sha3-256').update(value).digest('hex');
 
@@ -112,15 +107,17 @@ export async function createCredential(record, shares) {
 }
 
 export async function getCredentialById(id) {
-  // Try HTTP microservice first
-  try {
-    const response = await fetch(`${getShardNodeUrl(1)}/shard/${id}`);
-    if (response.ok) {
-      const data = await response.json();
-      if (data.credential) return data.credential;
-    }
-  } catch (err) {}
+  for (let i = 1; i <= NUM_NODES; i++) {
+    try {
+      const response = await fetch(`${getShardNodeUrl(i)}/shard/${id}`, { signal: AbortSignal.timeout(1500) });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.credential) return data.credential;
+      }
+    } catch (err) {}
+  }
 
+  // Fallback to local DB if available
   return nodes[0].stmts.getCred.get(id);
 }
 
@@ -128,22 +125,18 @@ export async function getSharesByCredentialId(id) {
   const allShares = [];
 
   for (let i = 1; i <= NUM_NODES; i++) {
-    let shardFetched = false;
-
     try {
-      const response = await fetch(`${getShardNodeUrl(i)}/shard/${id}`);
+      const response = await fetch(`${getShardNodeUrl(i)}/shard/${id}`, { signal: AbortSignal.timeout(1500) });
       if (response.ok) {
         const data = await response.json();
         if (data.share) {
           allShares.push(data.share);
-          shardFetched = true;
         }
+      } else {
+        console.warn(`Shard Node ${i} returned non-OK status ${response.status}`);
       }
-    } catch (err) {}
-
-    if (!shardFetched) {
-      const rows = nodes[i - 1].stmts.getShares.all(id);
-      allShares.push(...rows);
+    } catch (err) {
+      console.warn(`Shard Node ${i} is OFFLINE/UNREACHABLE: ${err.message}`);
     }
   }
 
