@@ -102,11 +102,9 @@ async function loadSampleCredentials(listContainerId, inputId, verifyFn) {
         const pill = document.createElement('span');
         pill.className = 'sample-pill';
         pill.textContent = row.id.substring(0, 18) + '...';
-        pill.title = `Click to verify ${row.id}`;
         pill.addEventListener('click', () => {
           const input = document.getElementById(inputId);
           if (input) input.value = row.id;
-          verifyFn(row.id);
         });
         container.appendChild(pill);
       });

@@ -26,11 +26,71 @@ navLinks.forEach(link => {
     // Tab Specific Actions
     if (tabId === 'tab-db') {
       loadDatabaseExplorer();
-    } else if (tabId === 'tab-progress') {
-      loadProgressLog();
+      initFaultSimulator();
+    } else if (tabId === 'tab-logs') {
+      fetchLogs();
     }
   });
 });
+
+// Initialize Fault Simulator Controls
+function initFaultSimulator() {
+  const container = document.getElementById('fault-simulator-grid');
+  if (!container) return;
+
+  container.querySelectorAll('.btn-stop-node').forEach(btn => {
+    btn.onclick = async () => {
+      const nodeName = btn.getAttribute('data-node');
+      btn.disabled = true;
+      btn.textContent = 'Stopping...';
+      await toggleNodeState(nodeName, 'stop');
+      btn.classList.add('hidden');
+      const startBtn = container.querySelector(`.btn-start-node[data-node="${nodeName}"]`);
+      if (startBtn) {
+        startBtn.classList.remove('hidden');
+        startBtn.disabled = false;
+        startBtn.textContent = 'Restore Node';
+      }
+      loadShardMatrix();
+    };
+  });
+
+  container.querySelectorAll('.btn-start-node').forEach(btn => {
+    btn.onclick = async () => {
+      const nodeName = btn.getAttribute('data-node');
+      btn.disabled = true;
+      btn.textContent = 'Starting...';
+      await toggleNodeState(nodeName, 'start');
+      btn.classList.add('hidden');
+      const stopBtn = container.querySelector(`.btn-stop-node[data-node="${nodeName}"]`);
+      if (stopBtn) {
+        stopBtn.classList.remove('hidden');
+        stopBtn.disabled = false;
+        stopBtn.textContent = 'Take Offline';
+      }
+      loadShardMatrix();
+    };
+  });
+}
+
+async function toggleNodeState(nodeName, action) {
+  const statusBar = document.getElementById('fault-simulation-status');
+  try {
+    const res = await fetch('/api/shards/toggle-container', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeName, action })
+    });
+    const data = await res.json();
+    if (data.success) {
+      statusBar.innerHTML = `<span class="text-green font-bold">${nodeName} ${action === 'stop' ? 'OFFLINE (SIMULATED COMPROMISE)' : 'RESTORED & ONLINE'}.</span> Verification API will automatically fall back to remaining healthy nodes.`;
+    } else {
+      statusBar.innerHTML = `<span class="text-red">Failed to ${action} ${nodeName}: ${data.error}</span>`;
+    }
+  } catch (err) {
+    statusBar.innerHTML = `<span class="text-red">Error: ${err.message}</span>`;
+  }
+}
 
 // Refresh Dashboard button
 const refreshAllBtn = document.getElementById('refresh-all-btn');
@@ -39,8 +99,8 @@ refreshAllBtn.addEventListener('click', () => {
   const activeTab = document.querySelector('.nav-link.active').getAttribute('data-tab');
   if (activeTab === 'tab-db') {
     loadDatabaseExplorer();
-  } else if (activeTab === 'tab-progress') {
-    loadProgressLog();
+  } else if (activeTab === 'tab-logs') {
+    fetchLogs();
   }
 });
 

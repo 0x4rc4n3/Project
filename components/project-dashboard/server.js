@@ -93,6 +93,27 @@ app.get('/api/status', async (req, res) => {
   });
 });
 
+// API: Toggle Shard Node Container State (Simulate Compromise / Fault Tolerance Test)
+app.post('/api/shards/toggle-container', async (req, res) => {
+  const { nodeName, action } = req.body;
+  if (!nodeName || !['stop', 'start'].includes(action)) {
+    return res.status(400).json({ success: false, error: 'Invalid parameters. Requires nodeName and action (stop|start).' });
+  }
+
+  if (!nodeName.startsWith('shard-node-')) {
+    return res.status(403).json({ success: false, error: 'Only shard-node containers can be toggled.' });
+  }
+
+  const cmd = `docker ${action} ${nodeName}`;
+  const result = await runCmd(cmd);
+  
+  if (result.success) {
+    res.json({ success: true, nodeName, action, message: `Container ${nodeName} ${action}ed successfully.` });
+  } else {
+    res.status(500).json({ success: false, nodeName, action, error: result.stderr || 'Failed to toggle container state.' });
+  }
+});
+
 // API: SQLite Credentials List
 app.get('/api/credentials', (req, res) => {
   try {
