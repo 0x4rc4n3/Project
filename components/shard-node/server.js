@@ -13,10 +13,12 @@ const NODE_INDEX = process.env.NODE_INDEX || '1';
 const DATA_DIR = process.env.DATA_DIR || '/app/data';
 const SHARD_NODE_API_KEY = getConfig('security.shard_node_api_key', process.env.SHARD_NODE_API_KEY);
 
+if (!SHARD_NODE_API_KEY) {
+  throw new Error("CRITICAL: SHARD_NODE_API_KEY is not configured. For security, the shard-node cannot start without an API key.");
+}
+
 // Inter-Service Authentication Middleware
 const authenticateInterService = (req, res, next) => {
-  if (!SHARD_NODE_API_KEY) return next();
-
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ success: false, error: 'Unauthorized: Missing or malformed Authorization header' });
@@ -97,7 +99,8 @@ app.get('/health', (req, res) => {
       integrityCheck: 'VALID'
     });
   } catch (err) {
-    res.status(500).json({ status: 'ERROR', error: err.message });
+    console.error('Shard Node Health Error:', err.stack || err.message);
+    res.status(500).json({ status: 'ERROR', error: 'Internal Server Error' });
   }
 });
 
@@ -116,8 +119,10 @@ app.post('/shard', authenticateInterService, (req, res) => {
       return res.status(400).json({ error: 'Invalid parameter: record.id must be a valid UUID v4' });
     }
 
-    if (!share.includes('-')) {
-      return res.status(400).json({ error: 'Invalid parameter: share must be formatted as index-value' });
+    // Strict regex validation of the share payload index-value:checksum
+    const shareRegex = /^[1-5]-[0-9a-f]+(:[0-9a-f]+)?$/i;
+    if (!shareRegex.test(share)) {
+      return res.status(400).json({ error: 'Invalid parameter: share must be formatted as index-value:checksum' });
     }
 
     const [core, checksum] = share.split(':');
@@ -156,7 +161,8 @@ app.post('/shard', authenticateInterService, (req, res) => {
 
     res.status(201).json({ success: true, nodeId: NODE_INDEX, credentialId: normRecord.id });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('Shard Node Write Error:', err.stack || err.message);
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
   }
 });
 
@@ -173,7 +179,8 @@ app.get('/shard/:credentialId', authenticateInterService, (req, res) => {
     const share = stmts.getShare.get(credentialId);
     res.json({ success: true, credential: cred, share });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('Shard Node Read Error:', err.stack || err.message);
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
   }
 });
 
@@ -205,7 +212,8 @@ app.post('/update-status', authenticateInterService, (req, res) => {
     }
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('Shard Node Update Status Error:', err.stack || err.message);
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
   }
 });
 
@@ -230,7 +238,8 @@ app.get('/integrity', authenticateInterService, (req, res) => {
       totalShares: shares.length
     });
   } catch (err) {
-    res.status(500).json({ status: 'ERROR', error: err.message });
+    console.error('Shard Node Integrity Error:', err.stack || err.message);
+    res.status(500).json({ status: 'ERROR', error: 'Internal Server Error' });
   }
 });
 
