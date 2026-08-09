@@ -2,6 +2,7 @@ import json
 import os
 import hvac
 from keygen import generate_keypair
+from config import get_config
 
 DATA_DIR = '/app/data' if os.path.exists('/app/data') else (
     '/app/certs' if os.path.exists('/app/certs') else os.path.dirname(os.path.abspath(__file__))
@@ -16,11 +17,11 @@ class KMS:
     ensure seamless verification of historical records.
     """
     def __init__(self):
-        self.vault_url = os.environ.get("VAULT_ADDR", "http://localhost:8200")
-        self.vault_token = os.environ.get("VAULT_TOKEN", "scatterid-vault-root-token")
-        self.vault_role_id = os.environ.get("VAULT_ROLE_ID")
-        self.vault_secret_id = os.environ.get("VAULT_SECRET_ID")
-        self.secret_path = os.environ.get("VAULT_SECRET_PATH", "scatterid/mldsa")
+        self.vault_url = get_config("network.vault_addr", os.environ.get("VAULT_ADDR", "http://localhost:8200"))
+        self.vault_token = get_config("security.vault_token", os.environ.get("VAULT_TOKEN", "scatterid-vault-root-token"))
+        self.vault_role_id = get_config("security.vault_role_id", os.environ.get("VAULT_ROLE_ID"))
+        self.vault_secret_id = get_config("security.vault_secret_id", os.environ.get("VAULT_SECRET_ID"))
+        self.secret_path = get_config("security.vault_secret_path", os.environ.get("VAULT_SECRET_PATH", "scatterid/mldsa"))
         self.client = None
         self.fallback_pub = None
         self.fallback_priv = None

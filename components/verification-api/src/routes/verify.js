@@ -1,14 +1,17 @@
 import { createHash } from 'crypto';
 import { getCredentialById, getSharesByCredentialId } from '../db/models.js';
 import { queryProof } from '../chain/fabric.js';
+import { getConfig } from '../config.js';
 
 export async function verifyRoute(req, res) {
   const { credentialId } = req.body;
 
-  if (!credentialId) {
+  // Strict zero-trust input validation: enforce UUID v4 regex format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!credentialId || typeof credentialId !== 'string' || !uuidRegex.test(credentialId)) {
     return res.status(400).json({
-      error: 'Missing required field: credentialId',
-      code: 'BAD_REQUEST',
+      error: 'Invalid parameter: credentialId is required and must be a valid UUID v4',
+      code: 'INVALID_PARAMETER',
     });
   }
 
@@ -110,12 +113,13 @@ export async function verifyRoute(req, res) {
   };
 
   try {
-    const cryptoUrl = process.env.CRYPTO_SERVICE_URL || 'https://localhost:5001';
+    const cryptoUrl = getConfig('network.crypto_service_url', process.env.CRYPTO_SERVICE_URL || 'https://localhost:5001');
+    const cryptoApiKey = getConfig('security.crypto_service_api_key', process.env.CRYPTO_SERVICE_API_KEY);
     const response = await fetch(`${cryptoUrl}/unpackage`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.CRYPTO_SERVICE_API_KEY}`,
+        'Authorization': `Bearer ${cryptoApiKey}`,
       },
       body: JSON.stringify({ credential, sharesSubset }),
     });

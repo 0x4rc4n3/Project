@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import { createHash, createHmac } from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { getConfig } from './config.js';
 
 const app = express();
 app.use(express.json());
@@ -10,7 +11,7 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const NODE_INDEX = process.env.NODE_INDEX || '1';
 const DATA_DIR = process.env.DATA_DIR || '/app/data';
-const SHARD_NODE_API_KEY = process.env.SHARD_NODE_API_KEY;
+const SHARD_NODE_API_KEY = getConfig('security.shard_node_api_key', process.env.SHARD_NODE_API_KEY);
 
 // Inter-Service Authentication Middleware
 const authenticateInterService = (req, res, next) => {
@@ -104,13 +105,29 @@ app.get('/health', (req, res) => {
 app.post('/shard', authenticateInterService, (req, res) => {
   try {
     const { record, share } = req.body;
-    if (!record || !share) {
-      return res.status(400).json({ error: 'Missing record or share payload' });
+    
+    // Strict ZTA input validation and sanitization
+    if (!record || !share || typeof record !== 'object' || typeof share !== 'string') {
+      return res.status(400).json({ error: 'Invalid parameter: record and share properties are required' });
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!record.id || !uuidRegex.test(record.id)) {
+      return res.status(400).json({ error: 'Invalid parameter: record.id must be a valid UUID v4' });
+    }
+
+    if (!share.includes('-')) {
+      return res.status(400).json({ error: 'Invalid parameter: share must be formatted as index-value' });
     }
 
     const [core, checksum] = share.split(':');
     const [indexStr, value] = core.split('-');
     const shareIndex = parseInt(indexStr, 10);
+    
+    if (isNaN(shareIndex) || shareIndex < 1 || shareIndex > 5) {
+      return res.status(400).json({ error: 'Invalid parameter: share index must be an integer between 1 and 5' });
+    }
+
     const shareHash = createHash('sha3-256').update(value).digest('hex');
 
     const normRecord = {
@@ -146,8 +163,14 @@ app.post('/shard', authenticateInterService, (req, res) => {
 // Get Shard Route
 app.get('/shard/:credentialId', authenticateInterService, (req, res) => {
   try {
-    const cred = stmts.getCred.get(req.params.credentialId);
-    const share = stmts.getShare.get(req.params.credentialId);
+    const { credentialId } = req.params;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!credentialId || !uuidRegex.test(credentialId)) {
+      return res.status(400).json({ error: 'Invalid parameter: credentialId must be a valid UUID v4' });
+    }
+
+    const cred = stmts.getCred.get(credentialId);
+    const share = stmts.getShare.get(credentialId);
     res.json({ success: true, credential: cred, share });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -158,6 +181,23 @@ app.get('/shard/:credentialId', authenticateInterService, (req, res) => {
 app.post('/update-status', authenticateInterService, (req, res) => {
   try {
     const { credentialId, status, anchorTxId } = req.body;
+    
+    // Strict ZTA input validation and sanitization
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!credentialId || !uuidRegex.test(credentialId)) {
+      return res.status(400).json({ error: 'Invalid parameter: credentialId must be a valid UUID v4' });
+    }
+
+    const allowedStatuses = ['pending', 'anchored', 'failed', 'revoked'];
+    if (!status || !allowedStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Invalid parameter: status must be a recognized value' });
+    }
+
+    const hex64Regex = /^[0-9a-f]{64}$/i;
+    if (anchorTxId && !hex64Regex.test(anchorTxId)) {
+      return res.status(400).json({ error: 'Invalid parameter: anchorTxId must be a 64-character hex string' });
+    }
+
     if (anchorTxId) {
       stmts.updateAnchor.run(anchorTxId, status, credentialId);
     } else {

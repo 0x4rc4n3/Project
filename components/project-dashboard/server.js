@@ -304,8 +304,8 @@ app.post('/api/diagnostics/run', async (req, res) => {
     // 3. Trigger /issue
     addLog('Credential Issuance', `Sending POST request to ${VERIFICATION_API_URL}/issue`, 'info');
     const claim = {
-      student: 'Diagnostic Test User',
-      degree: 'Master of Science in Cybersecurity',
+      subject: 'Diagnostic Test User',
+      role: 'Master of Science in Cybersecurity',
       timestamp: new Date().toISOString()
     };
 

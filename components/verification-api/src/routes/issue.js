@@ -1,27 +1,54 @@
 import { randomUUID } from 'crypto';
 import { createCredential, updateAnchorInfo, updateStatus } from '../db/models.js';
 import { anchorProof } from '../chain/fabric.js';
+import { getConfig } from '../config.js';
 
 export async function issueRoute(req, res) {
   const { claim } = req.body;
 
-  if (!claim) {
+  // Strict zero-trust input validation and sanitization
+  if (!claim || typeof claim !== 'object' || Array.isArray(claim)) {
     return res.status(400).json({
-      error: 'Missing required field: claim',
-      code: 'BAD_REQUEST',
+      error: 'Invalid parameter: claim is required and must be a structured JSON object',
+      code: 'INVALID_PARAMETER',
     });
   }
 
+  const { subject, role } = claim;
+  if (!subject || typeof subject !== 'string' || subject.trim() === '') {
+    return res.status(400).json({
+      error: 'Invalid parameter: claim.subject is required and must be a non-empty string',
+      code: 'INVALID_PARAMETER',
+    });
+  }
+
+  // Prevent HTML/script injection vectors by sanitizing subject and role
+  const sanitizedSubject = subject.replace(/[<>'"&;]/g, '').trim();
+  const sanitizedRole = role ? String(role).replace(/[<>'"&;]/g, '').trim() : undefined;
+
+  if (sanitizedSubject.length > 256 || (sanitizedRole && sanitizedRole.length > 256)) {
+    return res.status(400).json({
+      error: 'Invalid parameter length: claim properties exceed maximum size (256 chars)',
+      code: 'PARAMETER_TOO_LONG',
+    });
+  }
+
+  const sanitizedClaim = {
+    subject: sanitizedSubject,
+    ...(sanitizedRole && { role: sanitizedRole })
+  };
+
   let credential;
   try {
-    const cryptoUrl = process.env.CRYPTO_SERVICE_URL || 'https://localhost:5001';
+    const cryptoUrl = getConfig('network.crypto_service_url', process.env.CRYPTO_SERVICE_URL || 'https://localhost:5001');
+    const cryptoApiKey = getConfig('security.crypto_service_api_key', process.env.CRYPTO_SERVICE_API_KEY);
     const response = await fetch(`${cryptoUrl}/package`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.CRYPTO_SERVICE_API_KEY}`,
+        'Authorization': `Bearer ${cryptoApiKey}`,
       },
-      body: JSON.stringify({ claim }),
+      body: JSON.stringify({ claim: sanitizedClaim }),
     });
 
     if (!response.ok) {

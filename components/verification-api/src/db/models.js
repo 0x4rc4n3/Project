@@ -2,8 +2,9 @@ import Database from 'better-sqlite3';
 import { createHash } from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { getConfig } from '../config.js';
 
-const NUM_NODES = 5;
+const NUM_NODES = getConfig('cryptography.total_shards_n', 5);
 const nodes = [];
 
 const DB_DIR = process.env.DB_DIR || (fs.existsSync('/app/data') ? '/app/data' : path.resolve(process.cwd(), 'data'));
@@ -65,7 +66,7 @@ for (let i = 1; i <= NUM_NODES; i++) {
   nodes.push({ db: nodeDb, stmts, nodeId: i });
 }
 
-const SHARD_NODE_API_KEY = process.env.SHARD_NODE_API_KEY;
+const SHARD_NODE_API_KEY = getConfig('security.shard_node_api_key', process.env.SHARD_NODE_API_KEY);
 
 function getAuthHeaders(extraHeaders = {}) {
   const headers = { 'Content-Type': 'application/json', ...extraHeaders };

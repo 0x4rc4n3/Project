@@ -15,6 +15,7 @@ services:
       CRYPTO_SERVICE_API_KEY: "${CRYPTO_SERVICE_API_KEY:-dev-secret-key-123}"
     volumes:
       - ./components/crypto/certs:/app/certs
+      - ./config.json:/app/config.json:ro
     networks:
       - scatterid_net
 
@@ -37,6 +38,7 @@ services:
       - ./components/crypto/certs:/app/certs
       - ./components/blockchain:/app/blockchain
       - verification_data:/app/data
+      - ./config.json:/app/config.json:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -59,6 +61,7 @@ services:
       - ./components/verification-api:/app/verification-api
       - verification_data:/app/data:ro
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./config.json:/app/config.json:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -77,6 +80,7 @@ services:
       SHARD_NODE_API_KEY: "${SHARD_NODE_API_KEY:-scatterid-shard-secret-key-456}"
     volumes:
       - shard_1_data:/app/data
+      - ./config.json:/app/config.json:ro
     networks:
       - scatterid_net
 
@@ -93,6 +97,7 @@ services:
       SHARD_NODE_API_KEY: "${SHARD_NODE_API_KEY:-scatterid-shard-secret-key-456}"
     volumes:
       - shard_2_data:/app/data
+      - ./config.json:/app/config.json:ro
     networks:
       - scatterid_net
 
@@ -109,6 +114,7 @@ services:
       SHARD_NODE_API_KEY: "${SHARD_NODE_API_KEY:-scatterid-shard-secret-key-456}"
     volumes:
       - shard_3_data:/app/data
+      - ./config.json:/app/config.json:ro
     networks:
       - scatterid_net
 
@@ -125,6 +131,7 @@ services:
       SHARD_NODE_API_KEY: "${SHARD_NODE_API_KEY:-scatterid-shard-secret-key-456}"
     volumes:
       - shard_4_data:/app/data
+      - ./config.json:/app/config.json:ro
     networks:
       - scatterid_net
 
@@ -141,6 +148,7 @@ services:
       SHARD_NODE_API_KEY: "${SHARD_NODE_API_KEY:-scatterid-shard-secret-key-456}"
     volumes:
       - shard_5_data:/app/data
+      - ./config.json:/app/config.json:ro
     networks:
       - scatterid_net
 

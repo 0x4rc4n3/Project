@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify
 from kms import KMS
 from interface import package_credential, unpackage_credential
 import os
+import re
+from config import get_config
 
 app = Flask(__name__)
 
@@ -11,11 +13,11 @@ kms = KMS()
 # Load keys at startup directly from Vault
 PUBLIC_KEY, PRIVATE_KEY = kms.get_keys()
 
-# Load API key for verification
-API_KEY = os.environ.get("CRYPTO_SERVICE_API_KEY")
+# Load API key for verification from global configuration or environment
+API_KEY = get_config("security.crypto_service_api_key", os.environ.get("CRYPTO_SERVICE_API_KEY"))
 if not API_KEY:
     raise ValueError(
-        "CRITICAL: CRYPTO_SERVICE_API_KEY environment variable is not set. "
+        "CRITICAL: CRYPTO_SERVICE_API_KEY is not configured. "
         "For security, the crypto-service cannot start without an API key."
     )
 
@@ -37,7 +39,30 @@ def package_route():
     if not data or "claim" not in data:
         return jsonify({"error": "Missing 'claim' field", "code": "BAD_REQUEST"}), 400
 
-    credential = package_credential(data["claim"], PRIVATE_KEY, public_key=PUBLIC_KEY)
+    claim = data["claim"]
+    if not isinstance(claim, dict):
+        return jsonify({"error": "Invalid parameter: claim must be a JSON object", "code": "INVALID_PARAMETER"}), 400
+
+    subject = claim.get("subject")
+    if not subject or not isinstance(subject, str) or len(subject.strip()) == 0:
+        return jsonify({"error": "Invalid parameter: claim.subject is required and must be a non-empty string", "code": "INVALID_PARAMETER"}), 400
+
+    # Strict input sanitization to prevent injection
+    sanitized_subject = ''.join(c for c in subject if c not in "<>'\"&;").strip()
+    if len(sanitized_subject) > 256:
+        return jsonify({"error": "Invalid parameter length: claim.subject exceeds 256 characters", "code": "PARAMETER_TOO_LONG"}), 400
+
+    claim["subject"] = sanitized_subject
+    if "role" in claim:
+        role = claim["role"]
+        if not isinstance(role, str):
+            return jsonify({"error": "Invalid parameter: claim.role must be a string", "code": "INVALID_PARAMETER"}), 400
+        sanitized_role = ''.join(c for c in role if c not in "<>'\"&;").strip()
+        if len(sanitized_role) > 256:
+            return jsonify({"error": "Invalid parameter length: claim.role exceeds 256 characters", "code": "PARAMETER_TOO_LONG"}), 400
+        claim["role"] = sanitized_role
+
+    credential = package_credential(claim, PRIVATE_KEY, public_key=PUBLIC_KEY)
     return jsonify(credential), 201
 
 
@@ -47,13 +72,31 @@ def unpackage_route():
     if not data or "credential" not in data or "sharesSubset" not in data:
         return jsonify({"error": "Missing 'credential' or 'sharesSubset' field", "code": "BAD_REQUEST"}), 400
 
+    credential = data["credential"]
+    shares_subset = data["sharesSubset"]
+
+    if not isinstance(credential, dict) or not isinstance(shares_subset, list):
+        return jsonify({"error": "Invalid parameter types: credential must be object, sharesSubset must be array", "code": "INVALID_PARAMETER"}), 400
+
+    # Enforce UUID format for credential ID if present
+    cred_id = credential.get("id")
+    if cred_id:
+        uuid_regex = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', re.IGNORECASE)
+        if not isinstance(cred_id, str) or not uuid_regex.match(cred_id):
+            return jsonify({"error": "Invalid parameter: credential.id must be a valid UUID v4", "code": "INVALID_PARAMETER"}), 400
+
+    # Enforce structure for shares
+    for s in shares_subset:
+        if not isinstance(s, str) or "-" not in s:
+            return jsonify({"error": "Invalid parameter: shares must be string format index-value:checksum", "code": "INVALID_PARAMETER"}), 400
+
     try:
         keys_to_use = getattr(kms, 'public_key_history', [PUBLIC_KEY])
         if not keys_to_use:
             keys_to_use = [PUBLIC_KEY]
 
         recovered_bytes, valid = unpackage_credential(
-            data["credential"], keys_to_use, data["sharesSubset"]
+            credential, keys_to_use, shares_subset
         )
         return jsonify({
             "valid": valid,
