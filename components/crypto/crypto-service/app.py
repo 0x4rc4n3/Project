@@ -113,7 +113,9 @@ if __name__ == "__main__":
     TARGET_KEY = '/app/certs/crypto-service.key' if os.path.exists('/app/certs') else os.path.join(BASE_DIR, '../certs/crypto-service.key')
 
     CERT_PATH, KEY_PATH = ensure_certificates(TARGET_CERT, TARGET_KEY, BASE_DIR)
+    BUNDLE_PATH = os.path.join(os.path.dirname(CERT_PATH), 'bundle.crt')
+    EFFECTIVE_CERT = BUNDLE_PATH if os.path.exists(BUNDLE_PATH) else CERT_PATH
 
     # Run with HTTPS / SSL context
-    app.run(host='0.0.0.0', port=5001, debug=True, ssl_context=(CERT_PATH, KEY_PATH))
+    app.run(host='0.0.0.0', port=5001, debug=True, ssl_context=(EFFECTIVE_CERT, KEY_PATH))
 

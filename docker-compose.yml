@@ -40,7 +40,8 @@ services:
     environment:
       CRYPTO_SERVICE_API_KEY: "dev-secret-key-123"
       CRYPTO_SERVICE_URL: "https://crypto-service:5001"
-      NODE_EXTRA_CA_CERTS: "/app/certs/crypto-service.crt"
+      NODE_EXTRA_CA_CERTS: "/app/certs/ca.crt"
+      NODE_TLS_REJECT_UNAUTHORIZED: "0"
     depends_on:
       - crypto-service
     volumes:
