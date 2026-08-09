@@ -46,7 +46,10 @@ services:
       - crypto-service
     volumes:
       - ./components/crypto/certs:/app/certs
+      - ./components/blockchain:/app/blockchain
       - verification_data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - scatterid_net
 
@@ -61,6 +64,8 @@ services:
       VERIFICATION_API_URL: "http://verification-api:3000"
     volumes:
       - ./Progress.md:/app/Progress.md
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - scatterid_net
 

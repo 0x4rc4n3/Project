@@ -1,6 +1,7 @@
 import grpc from '@grpc/grpc-js';
 import { connect, hash, signers } from '@hyperledger/fabric-gateway';
 import crypto from 'node:crypto';
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,17 +14,19 @@ const channelName = 'scatterid-channel';
 const chaincodeName = 'scatterproof';
 const mspId = 'IssuerMSP';
 
-const cryptoPath = path.resolve(
-  __dirname,
-  '../../../blockchain/fabric-network/organizations/peerOrganizations/issuer.scatterid.com'
+const peerEndpoint = process.env.FABRIC_PEER_ENDPOINT || (fsSync.existsSync('/app/blockchain') ? 'peer0.issuer.scatterid.com:7051' : 'localhost:7051');
+const peerHostAlias = process.env.FABRIC_PEER_HOST_ALIAS || 'peer0.issuer.scatterid.com';
+
+const defaultCryptoPath = path.resolve(__dirname, '../../blockchain/fabric-network/organizations/peerOrganizations/issuer.scatterid.com');
+const containerCryptoPath = '/app/blockchain/fabric-network/organizations/peerOrganizations/issuer.scatterid.com';
+
+const cryptoPath = process.env.FABRIC_CRYPTO_PATH || (
+  fsSync.existsSync(containerCryptoPath) ? containerCryptoPath : defaultCryptoPath
 );
 
 const keyDirectoryPath = path.resolve(cryptoPath, 'users/User1@issuer.scatterid.com/msp/keystore');
 const certDirectoryPath = path.resolve(cryptoPath, 'users/User1@issuer.scatterid.com/msp/signcerts');
 const tlsCertPath = path.resolve(cryptoPath, 'peers/peer0.issuer.scatterid.com/tls/ca.crt');
-
-const peerEndpoint = 'localhost:7051';
-const peerHostAlias = 'peer0.issuer.scatterid.com';
 
 async function getFirstDirFileName(dirPath) {
   const files = await fs.readdir(dirPath);

@@ -1,59 +1,45 @@
 # Project Control Dashboard (`project-dashboard`)
 
-The `project-dashboard` component is a developer control console and system health dashboard designed with a high-contrast dark-mode developer aesthetic inspired by Vercel and HashiCorp.
+The `project-dashboard` component is a developer control console and system health dashboard built with a strict Vercel/HashiCorp dark-mode aesthetic.
 
 ---
 
-## 1. Purpose & Architecture
+## 1. System Role & Features
 
-The dashboard gives operators and developers full visibility into the ScatterID microservices, storage shards, and cryptographic pipelines.
-
-### Features
-- **Real-Time Health Monitoring**: Polls status of `crypto-service` (HTTPS:5001), `verification-api` (HTTP:3000), `vault` (HTTP:8200), and Fabric nodes (ports 7050, 7051, 8051).
-- **Multi-DB Shard Inspector**: Inspects SQLite credential records and shard tables across `node_1.db` through `node_5.db`.
-- **E2E Diagnostic Smoke Tester**: Executes end-to-end issuance, sharding, anchoring, and verification flows with live terminal output.
-- **Architecture Diagram Rendering**: Displays dynamic system architecture and trust boundary visualizations using Mermaid.js.
+- **Microservice Status Monitoring**: Uses low-latency TCP socket probing (`net.Socket`) to monitor health across ports `3000` (`verification-api`), `5001` (`crypto-service`), `7050` (Fabric Orderer), `7051` (Fabric Issuer Peer), and `8051` (Fabric Verifier Peer).
+- **Interactive E2E Diagnostics**: Features a multi-step smoke tester that executes real-time credential issuance, sharding across isolated SQLite nodes, and post-quantum verification.
+- **SQLite Database Explorer**: Provides real-time visibility into sharded credential tables (`credentials`, `shard_references`).
+- **Markdown Progress Renderer**: Dynamically parses and renders master `Progress.md` context.
 
 ---
 
-## 2. Environment Variables
+## 2. API Endpoints
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `PORT` | No | `4000` | HTTP port for the dashboard Express server. |
-| `VERIFICATION_API_URL` | Yes | `http://verification-api:3000` | Internal network URL for the `verification-api` gateway. |
-| `CRYPTO_SERVICE_URL` | No | `https://crypto-service:5001` | URL for direct crypto health checks. |
-| `VAULT_ADDR` | No | `http://vault:8200` | URL for HashiCorp Vault health checks. |
+- `GET /api/status`: Returns live operational status (`RUNNING` / `STOPPED` / `OFFLINE`) for microservices and Fabric nodes.
+- `GET /api/credentials`: Queries local SQLite database records and returns JSON array of issued credentials and shard metadata.
+- `POST /api/diagnostics/run`: Executes automated end-to-end issuance and verification diagnostic pipeline, returning step-by-step execution logs.
+- `GET /api/progress`: Reads and returns `Progress.md` contents.
 
 ---
 
-## 3. Pipelines & Execution
+## 3. Environment Variables
 
-### Local Development Setup
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `4000` | HTTP port for the Express dashboard server. |
+| `VERIFICATION_API_URL` | `http://verification-api:3000` | Gateway URL for diagnostics smoke tests. |
+| `CRYPTO_SERVICE_HOST` | `crypto-service` | Hostname for crypto service TCP port checks. |
+| `VERIFICATION_API_HOST` | `verification-api` | Hostname for verification API TCP port checks. |
 
-1. Install dependencies:
+---
+
+## 4. Execution
+
 ```bash
+# Install dependencies
 npm install
-```
 
-2. Run local dashboard server:
-```bash
-VERIFICATION_API_URL="http://localhost:3000" node server.js
+# Start local server
+node server.js
 ```
 Open `http://localhost:4000` in your web browser.
-
-### Docker Container Build
-
-1. Build Docker image:
-```bash
-docker build -t scatterid-dashboard .
-```
-
-2. Run container:
-```bash
-docker run -d \
-  --name scatterid-dashboard \
-  -p 4000:4000 \
-  -e VERIFICATION_API_URL="http://verification-api:3000" \
-  scatterid-dashboard
-```

@@ -10,19 +10,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 4000;
+const PORT = process.env.PORT || 4000;
+
+const VERIFICATION_API_URL = process.env.VERIFICATION_API_URL || 'http://verification-api:3000';
+const CRYPTO_SERVICE_HOST = process.env.CRYPTO_SERVICE_HOST || 'crypto-service';
+const VERIFICATION_API_HOST = process.env.VERIFICATION_API_HOST || 'verification-api';
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Path to SQLite DB
-const dbPath = path.resolve(__dirname, '../verification-api/credentials.db');
+const dbPath = process.env.SQLITE_DB_PATH || path.resolve(__dirname, '../verification-api/credentials.db');
 
-// Helper to check if a port is open
+// Helper to check if a port/host is reachable
 function checkPort(port, host = '127.0.0.1') {
   return new Promise((resolve) => {
     const socket = new net.Socket();
-    socket.setTimeout(1000);
+    socket.setTimeout(1500);
     socket.on('connect', () => {
       socket.destroy();
       resolve(true);
@@ -45,8 +49,8 @@ function runCmd(command) {
     exec(command, { cwd: path.resolve(__dirname, '../..') }, (error, stdout, stderr) => {
       resolve({
         success: !error,
-        stdout: stdout.trim(),
-        stderr: stderr.trim()
+        stdout: stdout ? stdout.trim() : '',
+        stderr: stderr ? stderr.trim() : ''
       });
     });
   });
@@ -54,22 +58,20 @@ function runCmd(command) {
 
 // API: System Status
 app.get('/api/status', async (req, res) => {
-  const cryptoServiceUp = await checkPort(5001);
-  const verificationApiUp = await checkPort(3000);
+  const cryptoServiceUp = await checkPort(5001, CRYPTO_SERVICE_HOST) || await checkPort(5001, '127.0.0.1');
+  const verificationApiUp = await checkPort(3000, VERIFICATION_API_HOST) || await checkPort(3000, '127.0.0.1');
 
-  // Check Docker containers
+  // Check Docker containers (or direct TCP ports for container environment)
+  let ordererUp = await checkPort(7050, 'orderer.scatterid.com') || await checkPort(7050, 'host.docker.internal') || await checkPort(7050, '127.0.0.1');
+  let issuerPeerUp = await checkPort(7051, 'peer0.issuer.scatterid.com') || await checkPort(7051, 'host.docker.internal') || await checkPort(7051, '127.0.0.1');
+  let verifierPeerUp = await checkPort(8051, 'peer0.verifier.scatterid.com') || await checkPort(8051, 'host.docker.internal') || await checkPort(8051, '127.0.0.1');
+
   const dockerInfo = await runCmd('docker ps --format "{{.Names}}: {{.Status}}"');
-  const containers = {
-    orderer: false,
-    issuerPeer: false,
-    verifierPeer: false
-  };
-
-  if (dockerInfo.success) {
+  if (dockerInfo.success && dockerInfo.stdout) {
     const output = dockerInfo.stdout;
-    if (output.includes('orderer.scatterid.com')) containers.orderer = true;
-    if (output.includes('peer0.issuer.scatterid.com')) containers.issuerPeer = true;
-    if (output.includes('peer0.verifier.scatterid.com')) containers.verifierPeer = true;
+    if (output.includes('orderer.scatterid.com')) ordererUp = true;
+    if (output.includes('peer0.issuer.scatterid.com')) issuerPeerUp = true;
+    if (output.includes('peer0.verifier.scatterid.com')) verifierPeerUp = true;
   }
 
   res.json({
@@ -78,9 +80,9 @@ app.get('/api/status', async (req, res) => {
       verificationApi: verificationApiUp ? 'RUNNING' : 'STOPPED'
     },
     blockchain: {
-      orderer: containers.orderer ? 'RUNNING' : 'OFFLINE',
-      issuerPeer: containers.issuerPeer ? 'RUNNING' : 'OFFLINE',
-      verifierPeer: containers.verifierPeer ? 'RUNNING' : 'OFFLINE'
+      orderer: ordererUp ? 'RUNNING' : 'OFFLINE',
+      issuerPeer: issuerPeerUp ? 'RUNNING' : 'OFFLINE',
+      verifierPeer: verifierPeerUp ? 'RUNNING' : 'OFFLINE'
     }
   });
 });
@@ -120,7 +122,7 @@ app.post('/api/diagnostics/run', async (req, res) => {
     addLog('Start', 'Initiating E2E Diagnostics Smoke Test', 'info');
 
     // 1. Verify Verification API is up
-    const apiUp = await checkPort(3000);
+    const apiUp = await checkPort(3000, VERIFICATION_API_HOST) || await checkPort(3000, '127.0.0.1');
     if (!apiUp) {
       addLog('Verification API Check', 'Verification API is offline on port 3000', 'error');
       return res.json({ success: false, logs });
@@ -128,7 +130,7 @@ app.post('/api/diagnostics/run', async (req, res) => {
     addLog('Verification API Check', 'Verification API is active on port 3000', 'success');
 
     // 2. Verify Crypto Service is up
-    const cryptoUp = await checkPort(5001);
+    const cryptoUp = await checkPort(5001, CRYPTO_SERVICE_HOST) || await checkPort(5001, '127.0.0.1');
     if (!cryptoUp) {
       addLog('Crypto Service Check', 'Crypto Service is offline on port 5001', 'error');
       return res.json({ success: false, logs });
@@ -136,14 +138,14 @@ app.post('/api/diagnostics/run', async (req, res) => {
     addLog('Crypto Service Check', 'Crypto Service is active on port 5001', 'success');
 
     // 3. Trigger /issue
-    addLog('Credential Issuance', 'Sending POST request to /issue', 'info');
+    addLog('Credential Issuance', `Sending POST request to ${VERIFICATION_API_URL}/issue`, 'info');
     const claim = {
       student: 'Diagnostic Test User',
       degree: 'Master of Science in Cybersecurity',
       timestamp: new Date().toISOString()
     };
 
-    const issueResponse = await fetch('http://localhost:3000/issue', {
+    const issueResponse = await fetch(`${VERIFICATION_API_URL}/issue`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ claim })
@@ -161,8 +163,8 @@ app.post('/api/diagnostics/run', async (req, res) => {
     const credId = issueResult.credentialId;
 
     // 4. Trigger /verify
-    addLog('Credential Verification', `Sending POST request to /verify for ${credId}`, 'info');
-    const verifyResponse = await fetch('http://localhost:3000/verify', {
+    addLog('Credential Verification', `Sending POST request to ${VERIFICATION_API_URL}/verify for ${credId}`, 'info');
+    const verifyResponse = await fetch(`${VERIFICATION_API_URL}/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ credentialId: credId })
@@ -181,10 +183,9 @@ app.post('/api/diagnostics/run', async (req, res) => {
       addLog('Credential Verification', `Verification FAILED. Reason: ${verifyResult.reason || 'Unknown'}`, 'error');
     }
 
-    addLog('Finish', 'E2E Diagnostics Smoke Test Complete', 'success');
     res.json({ success: true, logs });
   } catch (err) {
-    addLog('Unhandled Error', err.message, 'error');
+    addLog('Exception', `Unexpected error during smoke test: ${err.message}`, 'error');
     res.json({ success: false, logs });
   }
 });

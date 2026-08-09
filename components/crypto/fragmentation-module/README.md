@@ -1,45 +1,55 @@
 # Fragmentation & Post-Quantum Cryptography Module
 
-This module provides the core Python library routines for ML-DSA-65 post-quantum signing, Shamir secret splitting, and share integrity validation used by the ScatterID crypto ecosystem.
+The `fragmentation-module` is a pure Python cryptographic library providing ML-DSA-65 post-quantum digital signatures, Shamir secret splitting over Galois fields, and per-share checksum validation routines.
 
 ---
 
-## 1. Purpose & Architecture
+## 1. Mathematical Architecture & Cryptography
 
-The `fragmentation-module` houses pure cryptographic functions decoupled from web transport layers:
+### Post-Quantum Signature Scheme (ML-DSA-65)
+- Implemented via `liboqs-python` bindings for `liboqs`.
+- **Algorithm**: ML-DSA-65 (NIST FIPS 204 standardized lattice-based digital signature scheme derived from Dilithium).
+- **Public Key Size**: 1,952 bytes.
+- **Private Key Size**: 4,032 bytes.
+- **Signature Size**: 3,309 bytes.
 
-### Module Breakdown
-- `src/pq_sign.py`: Wraps `liboqs` to generate and verify ML-DSA-65 signatures.
-- `src/shamir.py`: Implements $k$-of-$n$ Shamir secret sharing ($3$-of-$5$) using `sslib` with SHA-256 integrity checksums.
-- `src/interface.py`: Exposes `package_credential()` and `unpackage_credential()` routines combining PQC signatures with secret sharding.
-- `src/keygen.py`: Standalone CLI utility for generating ML-DSA-65 keypairs for local testing.
+### Shamir Secret Sharing Scheme ($k$-of-$n$)
+- Implemented via `sslib` using prime field arithmetic.
+- **Default Parameters**: Threshold $k=3$, Total shares $n=5$.
+- **Integrity Layer**: Appends a SHA-256 integrity checksum to each share payload string formatted as `<index>-<hex_value>:<sha256_checksum>`.
+- **Properties**: Information-theoretically secure; any subset of $<k$ shares reveals zero mathematical information regarding the secret.
 
 ---
 
-## 2. Environment Variables
+## 2. Function Specifications
 
-This pure python library does not rely on direct runtime environment variables; configuration options (e.g. threshold shares $k$, total shares $n$, algorithm choice) are passed as parameters into `package_credential()`.
+### `package_credential(claim_dict, private_key_bytes)`
+1. Serializes `claim_dict` into deterministic canonical JSON bytes.
+2. Computes `data_hash = sha3_256(canonical_bytes).hexdigest()`.
+3. Computes `signature = ml_dsa_65_sign(data_hash, private_key_bytes)`.
+4. Encodes `(data_hash + signature)` payload into Shamir $3$-of-$5$ secret shares.
+5. Appends per-share SHA-256 checksums to each share string.
+
+### `unpackage_credential(credential_dict, public_key_bytes, shares_subset)`
+1. Validates length of `shares_subset` ($\ge 3$).
+2. Validates SHA-256 checksum for each share in `shares_subset`.
+3. Reconstructs combined payload via Shamir interpolation.
+4. Splits payload into `data_hash` and `signature`.
+5. Verifies ML-DSA-65 `signature` over `data_hash` using `public_key_bytes`.
+6. Returns `(recovered_data_bytes, is_valid_boolean)`.
 
 ---
 
-## 3. Pipelines & Execution
+## 3. Unit Testing Pipeline
 
-### Setup & Local Development
+Execute full suite of Pytest unit tests verifying round-trip issuance, insufficient share rejection, and signature tampering detection:
 
 ```bash
+# Setup virtual environment
 python3 -m venv venv
 source venv/bin/activate
-pip install sslib oqs pytest
-```
+pip install -r ../crypto-service/requirements.txt pytest
 
-### Execution & Testing
-
-Run unit and integration test suites:
-```bash
-python3 -m pytest tests/
-```
-
-Generate local test keypair:
-```bash
-python3 src/keygen.py
+# Execute unit test suite
+PYTHONPATH=src pytest tests/ -v
 ```

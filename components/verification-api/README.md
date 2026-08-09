@@ -1,77 +1,91 @@
 # Verification API Gateway (`verification-api`)
 
-The `verification-api` component is an Express.js API gateway that manages credential issuance, multi-database shard persistence, signature verification requests, and Hyperledger Fabric blockchain anchoring.
+The `verification-api` microservice is an Express.js ES-Module API gateway responsible for credential issuance, multi-database shard distribution across isolated SQLite instances, cryptographic validation, and Hyperledger Fabric blockchain proof anchoring.
 
 ---
 
-## 1. Purpose & Architecture
+## 1. System Role & Multi-Database Architecture
 
-The gateway serves as the primary entry point for client applications requesting credential issuance or verification.
+The gateway enforces zero-trust data segregation across physical database boundaries:
 
-### Core Functions & Trust Boundaries
-- **Shard Node Management**: Interacts with 5 isolated SQLite database instances (`node_1.db` through `node_5.db`). Each credential share is routed to its designated database instance without storing complete credential payloads in any single file.
-- **Crypto Service Integration**: Communicates securely over HTTPS with the Python `crypto-service` to package and unpackage post-quantum signed credentials.
-- **Blockchain Anchoring**: Uses `@hyperledger/fabric-gateway` over gRPC to anchor proof metadata (Credential ID, Data Hash, Issuer MSP, Timestamp) to `scatterid-channel` on Hyperledger Fabric.
-
-### API Routes
-- `POST /issue`: Accepts raw claim JSON, delegates packaging to `crypto-service`, writes 5 shares across `node_1.db`..`node_5.db`, and anchors the proof on Fabric.
-- `POST /verify`: Fetches credential metadata and shares across SQLite nodes, validates SHA-256 checksums & SHA3-256 share hashes, queries Fabric anchor status, and delegates ML-DSA-65 signature verification to `crypto-service`.
-- `GET /status/:id`: Returns credential state (`pending`, `anchored`, `failed`, `revoked`).
+- **Isolated Multi-Database Sharding**: Maintains 5 independent SQLite database instances (`node_1.db` through `node_5.db`). No single database node ever contains $>1/n$ secret shares or usable credential payloads.
+- **Statement Pre-compilation (Crash Prevention)**: All SQL queries (`INSERT`, `SELECT`, `UPDATE`) are pre-compiled once per database instance at startup into statement objects (`stmts`), preventing V8 garbage collection assertion crashes (`RemoveEnvironmentCleanupHook`) in Node.js 24.
+- **Hyperledger Fabric gRPC Client**: Interacts with `scatterid-channel` and `scatterproof` Go chaincode using `@hyperledger/fabric-gateway` and `@grpc/grpc-js` over TLS.
 
 ---
 
-## 2. Environment Variables
+## 2. API Endpoints & Request Lifecycles
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `PORT` | No | `3000` | HTTP port on which the Express gateway listens. |
-| `CRYPTO_SERVICE_URL` | Yes | `https://crypto-service:5001` | HTTPS URL of the backend Python crypto service. |
-| `CRYPTO_SERVICE_API_KEY` | Yes | `dev-secret-key-123` | Bearer token secret sent in requests to `crypto-service`. |
-| `NODE_EXTRA_CA_CERTS` | Yes | `/app/certs/crypto-service.crt` | Path to Root CA certificate for validating TLS connections to `crypto-service`. |
+### `POST /issue`
+Accepts raw claim JSON, delegates cryptographic packaging to `crypto-service:5001`, writes shares 1..5 across `node_1.db`..`node_5.db`, and submits proof anchor transaction to Fabric ledger.
+
+#### Request Body
+```json
+{
+  "claim": {
+    "subject": "did:scatterid:user-001",
+    "degree": "BSc Computer Science"
+  }
+}
+```
+
+#### Response Body (`201 Created`)
+```json
+{
+  "status": "anchored",
+  "credentialId": "4b06b3cf-ce45-4e94-99ae-ad0088ce1b3f",
+  "anchorTxId": "a7b8c9d0..."
+}
+```
 
 ---
 
-## 3. Pipelines & Execution
+### `POST /verify`
+Performs reconstruction-less credential verification:
+1. Queries Hyperledger Fabric ledger (`QueryProof`) to verify anchor existence and active status.
+2. Fetches stored shares from `node_1.db` through `node_5.db`.
+3. Validates Layer 1 SHA-256 appended share checksums and Layer 2 SHA3-256 database share hashes.
+4. Passes valid share subset ($\ge 3$) to `crypto-service:5001/unpackage` for ML-DSA-65 signature verification.
 
-### Prerequisites
-- Node.js v24+
-- `libnode-dev` system package installed (required for dynamic C++ linking of `better-sqlite3`).
-- Running `crypto-service` on port 5001 and running Hyperledger Fabric network on port 7051.
+#### Request Body
+```json
+{
+  "credentialId": "4b06b3cf-ce45-4e94-99ae-ad0088ce1b3f"
+}
+```
 
-### Local Development
+#### Response Body (`200 OK`)
+```json
+{
+  "valid": true,
+  "anchorStatus": "active",
+  "issuedAt": "2026-08-09T10:47:55.456699+00:00"
+}
+```
 
-1. Install dependencies:
+---
+
+## 3. Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `3000` | HTTP port for gateway server. |
+| `CRYPTO_SERVICE_URL` | `https://crypto-service:5001` | Internal HTTPS URL of crypto microservice. |
+| `CRYPTO_SERVICE_API_KEY` | `dev-secret-key-123` | Bearer token secret for `crypto-service` requests. |
+| `NODE_EXTRA_CA_CERTS` | `/app/certs/ca.crt` | Path to Root CA certificate for Node.js TLS verification. |
+| `FABRIC_PEER_ENDPOINT` | `peer0.issuer.scatterid.com:7051` | gRPC endpoint of Fabric issuer peer. |
+
+---
+
+## 4. Execution & Testing Pipelines
+
 ```bash
+# Install dependencies
 npm install
-```
 
-2. Start server in development mode:
-```bash
+# Run dev mode
 npm run dev
-```
 
-### Container Build & Run
-
-1. Build Docker image:
-```bash
-docker build -t scatterid-verification .
-```
-
-2. Run container:
-```bash
-docker run -d \
-  --name scatterid-verification \
-  -p 3000:3000 \
-  -e CRYPTO_SERVICE_URL="https://crypto-service:5001" \
-  -e CRYPTO_SERVICE_API_KEY="dev-secret-key-123" \
-  -e NODE_EXTRA_CA_CERTS="/app/certs/crypto-service.crt" \
-  -v $(pwd)/../crypto/certs:/app/certs \
-  scatterid-verification
-```
-
-### Testing
-
-Run automated tests:
-```bash
+# Run automated tests
 npm test
 ```

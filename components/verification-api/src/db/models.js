@@ -31,7 +31,24 @@ for (let i = 1; i <= NUM_NODES; i++) {
 
     CREATE INDEX IF NOT EXISTS idx_shard_refs_credential ON shard_references(credential_id);
   `);
-  nodes.push(nodeDb);
+
+  // Pre-compile prepared statements once per node database instance
+  const stmts = {
+    insertCred: nodeDb.prepare(`
+      INSERT OR IGNORE INTO credentials (id, data_hash, algorithm, signature, prime_mod, required_shares, anchor_tx_id, status, issued_at)
+      VALUES (@id, @dataHash, @algorithm, @signature, @primeMod, @requiredShares, @anchorTxId, @status, @issuedAt)
+    `),
+    insertShare: nodeDb.prepare(`
+      INSERT INTO shard_references (id, credential_id, share_index, share_value, share_hash, share_checksum)
+      VALUES (@id, @credentialId, @shareIndex, @shareValue, @shareHash, @shareChecksum)
+    `),
+    getCred: nodeDb.prepare('SELECT * FROM credentials WHERE id = ?'),
+    getShares: nodeDb.prepare('SELECT * FROM shard_references WHERE credential_id = ?'),
+    updateStatus: nodeDb.prepare('UPDATE credentials SET status = ? WHERE id = ?'),
+    updateAnchor: nodeDb.prepare('UPDATE credentials SET anchor_tx_id = ?, status = ? WHERE id = ?'),
+  };
+
+  nodes.push({ db: nodeDb, stmts });
 }
 
 export function createCredential(record, shares) {
@@ -39,27 +56,20 @@ export function createCredential(record, shares) {
     const [core, checksum] = share.split(':');
     const [indexStr, value] = core.split('-');
     const nodeIndex = parseInt(indexStr, 10) - 1;
-    
+
     if (nodeIndex >= 0 && nodeIndex < NUM_NODES) {
-      const db = nodes[nodeIndex];
-      const insertCred = db.prepare(`
-        INSERT OR IGNORE INTO credentials (id, data_hash, algorithm, signature, prime_mod, required_shares, anchor_tx_id, status, issued_at)
-        VALUES (@id, @dataHash, @algorithm, @signature, @primeMod, @requiredShares, @anchorTxId, @status, @issuedAt)
-      `);
-      const insertShare = db.prepare(`
-        INSERT INTO shard_references (id, credential_id, share_index, share_value, share_hash, share_checksum)
-        VALUES (@id, @credentialId, @shareIndex, @shareValue, @shareHash, @shareChecksum)
-      `);
+      const { db, stmts } = nodes[nodeIndex];
       const shareHash = createHash('sha3-256').update(value).digest('hex');
+
       db.transaction(() => {
-        insertCred.run(record);
-        insertShare.run({
+        stmts.insertCred.run(record);
+        stmts.insertShare.run({
           id: `${record.id}-${indexStr}`,
           credentialId: record.id,
           shareIndex: parseInt(indexStr, 10),
           shareValue: value,
           shareHash,
-          shareChecksum: checksum
+          shareChecksum: checksum,
         });
       })();
     }
@@ -67,30 +77,26 @@ export function createCredential(record, shares) {
 }
 
 export function getCredentialById(id) {
-  const stmt = nodes[0].prepare('SELECT * FROM credentials WHERE id = ?');
-  return stmt.get(id);
+  return nodes[0].stmts.getCred.get(id);
 }
 
 export function getSharesByCredentialId(id) {
   const allShares = [];
-  for (const db of nodes) {
-    const stmt = db.prepare('SELECT * FROM shard_references WHERE credential_id = ?');
-    const rows = stmt.all(id);
+  for (const node of nodes) {
+    const rows = node.stmts.getShares.all(id);
     allShares.push(...rows);
   }
   return allShares.sort((a, b) => a.share_index - b.share_index);
 }
 
 export function updateStatus(id, status) {
-  for (const db of nodes) {
-    const stmt = db.prepare('UPDATE credentials SET status = ? WHERE id = ?');
-    stmt.run(status, id);
+  for (const node of nodes) {
+    node.stmts.updateStatus.run(status, id);
   }
 }
 
 export function updateAnchorInfo(id, anchorTxId, status) {
-  for (const db of nodes) {
-    const stmt = db.prepare('UPDATE credentials SET anchor_tx_id = ?, status = ? WHERE id = ?');
-    stmt.run(anchorTxId, status, id);
+  for (const node of nodes) {
+    node.stmts.updateAnchor.run(anchorTxId, status, id);
   }
 }

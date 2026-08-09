@@ -34,8 +34,9 @@ export async function issueRoute(req, res) {
 
     credential = await response.json();
   } catch (err) {
+    console.error('Error reaching crypto-service:', err);
     return res.status(502).json({
-      error: 'Could not reach crypto-service',
+      error: `Could not reach crypto-service: ${err.message}`,
       code: 'CRYPTO_SERVICE_UNREACHABLE',
     });
   }

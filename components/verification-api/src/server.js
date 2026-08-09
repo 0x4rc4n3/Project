@@ -1,3 +1,4 @@
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 import express from 'express';
 import { issueRoute } from './routes/issue.js';
 import { statusRoute } from './routes/status.js';
