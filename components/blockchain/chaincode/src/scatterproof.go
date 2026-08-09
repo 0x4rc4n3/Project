@@ -4,8 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"regexp"
 
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
+)
+
+var (
+	uuidRegexp   = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+	sha256Regexp = regexp.MustCompile(`^[0-9a-f]{64}$`)
 )
 
 // SmartContract provides functions for managing proof records
@@ -24,21 +30,35 @@ type ProofRecord struct {
 
 // AnchorProof records a new proof hash on the ledger
 func (s *SmartContract) AnchorProof(ctx contractapi.TransactionContextInterface, credentialID string, dataHash string, issuerID string, timestamp string) error {
+	// Strict Zero Trust Input Validation
+	if !uuidRegexp.MatchString(credentialID) {
+		return fmt.Errorf("invalid credentialID format: must be a valid UUID v4")
+	}
+	if !sha256Regexp.MatchString(dataHash) {
+		return fmt.Errorf("invalid dataHash format: must be a valid 64-character hexadecimal SHA3-256 hash")
+	}
+	if issuerID == "" || len(issuerID) > 256 {
+		return fmt.Errorf("invalid issuerID: must be non-empty and under 256 characters")
+	}
+	if timestamp == "" || len(timestamp) > 64 {
+		return fmt.Errorf("invalid timestamp: must be non-empty and under 64 characters")
+	}
+
+	// Access control: Ensure the caller has a valid client identity MSP and is authorized (IssuerMSP only)
+	clientMSPID, err := ctx.GetClientIdentity().GetMSPID()
+	if err != nil {
+		return fmt.Errorf("failed to get client MSP ID: %v", err)
+	}
+	if clientMSPID != "IssuerMSP" {
+		return fmt.Errorf("unauthorized: client MSP %s is not permitted to anchor proofs", clientMSPID)
+	}
+
 	exists, err := s.ProofExists(ctx, credentialID)
 	if err != nil {
 		return err
 	}
 	if exists {
 		return fmt.Errorf("the proof for credential %s already exists", credentialID)
-	}
-
-	// Access control: Ensure the caller has a valid client identity MSP
-	clientMSPID, err := ctx.GetClientIdentity().GetMSPID()
-	if err != nil {
-		return fmt.Errorf("failed to get client MSP ID: %v", err)
-	}
-	if clientMSPID == "" {
-		return fmt.Errorf("client MSP ID is empty")
 	}
 
 	record := ProofRecord{
@@ -59,6 +79,11 @@ func (s *SmartContract) AnchorProof(ctx contractapi.TransactionContextInterface,
 
 // QueryProof returns the ProofRecord stored in the ledger with given credentialID
 func (s *SmartContract) QueryProof(ctx contractapi.TransactionContextInterface, credentialID string) (*ProofRecord, error) {
+	// Strict Zero Trust Input Validation
+	if !uuidRegexp.MatchString(credentialID) {
+		return nil, fmt.Errorf("invalid credentialID format: must be a valid UUID v4")
+	}
+
 	recordJSON, err := ctx.GetStub().GetState(credentialID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read from world state: %v", err)
@@ -78,18 +103,26 @@ func (s *SmartContract) QueryProof(ctx contractapi.TransactionContextInterface, 
 
 // RevokeProof sets the status of a proof record to "revoked"
 func (s *SmartContract) RevokeProof(ctx contractapi.TransactionContextInterface, credentialID string, requestingIssuerID string) error {
+	// Strict Zero Trust Input Validation
+	if !uuidRegexp.MatchString(credentialID) {
+		return fmt.Errorf("invalid credentialID format: must be a valid UUID v4")
+	}
+	if requestingIssuerID == "" || len(requestingIssuerID) > 256 {
+		return fmt.Errorf("invalid requestingIssuerID: must be non-empty and under 256 characters")
+	}
+
 	record, err := s.QueryProof(ctx, credentialID)
 	if err != nil {
 		return err
 	}
 
-	// Access control: only the original issuer org can revoke.
+	// Access control: only the original issuer org (IssuerMSP) can revoke.
 	clientMSPID, err := ctx.GetClientIdentity().GetMSPID()
 	if err != nil {
 		return fmt.Errorf("failed to get client MSP ID: %v", err)
 	}
-	if clientMSPID == "" {
-		return fmt.Errorf("client MSP ID is empty")
+	if clientMSPID != "IssuerMSP" {
+		return fmt.Errorf("unauthorized: client MSP %s is not permitted to revoke proofs", clientMSPID)
 	}
 
 	// Ensure the caller is the original issuer
@@ -109,6 +142,11 @@ func (s *SmartContract) RevokeProof(ctx contractapi.TransactionContextInterface,
 
 // ProofExists returns true when proof record with given credentialID exists in world state
 func (s *SmartContract) ProofExists(ctx contractapi.TransactionContextInterface, credentialID string) (bool, error) {
+	// Strict Zero Trust Input Validation
+	if !uuidRegexp.MatchString(credentialID) {
+		return false, fmt.Errorf("invalid credentialID format: must be a valid UUID v4")
+	}
+
 	recordJSON, err := ctx.GetStub().GetState(credentialID)
 	if err != nil {
 		return false, err
