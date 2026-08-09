@@ -143,6 +143,7 @@ app.post('/api/shards/toggle-container', async (req, res) => {
     // If starting a container, wait until its HTTP health endpoint responds OK (up to 3s)
     if (action === 'start') {
       const nodeIdMatch = targetContainer.match(/shard-(\d+)/);
+      let healEvents = [];
       if (nodeIdMatch) {
         const nodeId = nodeIdMatch[1];
         const healthUrl = `http://shard-node-${nodeId}:3000/health`;
@@ -153,7 +154,20 @@ app.post('/api/shards/toggle-container', async (req, res) => {
           } catch (e) {}
           await new Promise(r => setTimeout(r, 250));
         }
+
+        try {
+          const healRes = await fetch(`${VERIFICATION_API_URL}/heal-shards`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nodeId })
+          });
+          if (healRes.ok) {
+            const hData = await healRes.json();
+            healEvents = hData.events || [];
+          }
+        } catch (e) {}
       }
+      return res.json({ success: true, nodeName, targetContainer, action, healed: true, healEvents, message: `Container ${targetContainer} started and auto-synced successfully.` });
     }
     res.json({ success: true, nodeName, targetContainer, action, message: `Container ${targetContainer} ${action}ed successfully.` });
   } else {

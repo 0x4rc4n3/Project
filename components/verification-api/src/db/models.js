@@ -176,3 +176,68 @@ export async function updateAnchorInfo(id, anchorTxId, status) {
     nodes[i - 1].stmts.updateAnchor.run(anchorTxId, status, id);
   }
 }
+
+export async function healShards(nodeId = null) {
+  const syncedEvents = [];
+  const targetNodes = nodeId ? [parseInt(nodeId, 10)] : [1, 2, 3, 4, 5];
+
+  for (const nId of targetNodes) {
+    const nodeIndex = nId - 1;
+    const nodeUrl = getShardNodeUrl(nId);
+
+    try {
+      const hRes = await fetch(`${nodeUrl}/health`, { signal: AbortSignal.timeout(1200) });
+      if (!hRes.ok) continue;
+    } catch (e) {
+      continue;
+    }
+
+    const { db } = nodes[nodeIndex];
+    const localShares = db.prepare(`
+      SELECT s.*, c.data_hash, c.algorithm, c.signature, c.prime_mod, c.required_shares, c.anchor_tx_id, c.status, c.issued_at 
+      FROM shard_references s 
+      JOIN credentials c ON s.credential_id = c.id 
+      WHERE s.share_index = ?
+    `).all(nId);
+
+    let healedCount = 0;
+    for (const row of localShares) {
+      try {
+        const checkRes = await fetch(`${nodeUrl}/shard/${row.credential_id}`, { signal: AbortSignal.timeout(1000) });
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          if (!checkData.share) {
+            const record = {
+              id: row.credential_id,
+              dataHash: row.data_hash,
+              algorithm: row.algorithm,
+              signature: row.signature,
+              primeMod: row.prime_mod,
+              requiredShares: row.required_shares,
+              anchorTxId: row.anchor_tx_id,
+              status: row.status,
+              issuedAt: row.issued_at
+            };
+            const share = `${row.share_index}-${row.share_value}:${row.share_checksum || ''}`;
+
+            const syncRes = await fetch(`${nodeUrl}/shard`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ record, share })
+            });
+            if (syncRes.ok) healedCount++;
+          }
+        }
+      } catch (e) {}
+    }
+
+    syncedEvents.push({
+      nodeId: nId,
+      healedShares: healedCount,
+      timestamp: new Date().toISOString(),
+      logText: `[AUTO-HEAL] Shard Node ${nId} auto-synced ${healedCount} missing secret shares.`
+    });
+  }
+
+  return syncedEvents;
+}
