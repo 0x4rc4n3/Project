@@ -230,7 +230,7 @@ graph TD
     Server -->|"2. POST /package"| Flask
     
     Flask -->|"KMS Reconstruct Key"| KMS
-    KMS <-->|"Load Key"| Vault
+    KMS -->|"Load Key"| Vault
 
     Flask -->|"Signs Credential"| LibOQS
     Flask -->|"Splits into Shards"| SSLib

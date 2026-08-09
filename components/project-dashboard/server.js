@@ -1,6 +1,7 @@
 import express from 'express';
 import Database from 'better-sqlite3';
 import { exec } from 'child_process';
+import fsSync from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';

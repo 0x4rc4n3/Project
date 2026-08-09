@@ -64,8 +64,8 @@ services:
       VERIFICATION_API_URL: "http://verification-api:3000"
     volumes:
       - ./Progress.md:/app/Progress.md
-      - ./components/project-dashboard/public:/app/public
-      - ./components/project-dashboard/server.js:/app/server.js
+      - ./components/project-dashboard:/app
+      - /app/node_modules
       - ./components/verification-api:/app/verification-api
     extra_hosts:
       - "host.docker.internal:host-gateway"
