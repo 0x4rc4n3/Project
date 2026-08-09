@@ -3,9 +3,9 @@ services:
     image: hashicorp/vault:latest
     container_name: scatterid-vault
     ports:
-      - "8200:8200"
+      - "${PORT_VAULT:-8200}:8200"
     environment:
-      VAULT_DEV_ROOT_TOKEN_ID: "dev-root-token"
+      VAULT_DEV_ROOT_TOKEN_ID: "${VAULT_TOKEN:-dev-root-token}"
       VAULT_ADDR: "http://127.0.0.1:8200"
     cap_add:
       - IPC_LOCK
@@ -18,11 +18,11 @@ services:
       dockerfile: Dockerfile
     container_name: scatterid-crypto
     ports:
-      - "5001:5001"
+      - "${PORT_CRYPTO_SERVICE:-5001}:5001"
     environment:
       VAULT_ADDR: "http://vault:8200"
-      VAULT_TOKEN: "dev-root-token"
-      CRYPTO_SERVICE_API_KEY: "dev-secret-key-123"
+      VAULT_TOKEN: "${VAULT_TOKEN:-dev-root-token}"
+      CRYPTO_SERVICE_API_KEY: "${CRYPTO_SERVICE_API_KEY:-dev-secret-key-123}"
     depends_on:
       - vault
     volumes:
@@ -36,9 +36,9 @@ services:
       dockerfile: Dockerfile
     container_name: scatterid-verification
     ports:
-      - "3000:3000"
+      - "${PORT_VERIFICATION_API:-3000}:3000"
     environment:
-      CRYPTO_SERVICE_API_KEY: "dev-secret-key-123"
+      CRYPTO_SERVICE_API_KEY: "${CRYPTO_SERVICE_API_KEY:-dev-secret-key-123}"
       CRYPTO_SERVICE_URL: "https://crypto-service:5001"
       NODE_EXTRA_CA_CERTS: "/app/certs/ca.crt"
       NODE_TLS_REJECT_UNAUTHORIZED: "0"
@@ -59,7 +59,7 @@ services:
       dockerfile: Dockerfile
     container_name: scatterid-dashboard
     ports:
-      - "4000:4000"
+      - "${PORT_DASHBOARD:-4000}:4000"
     environment:
       VERIFICATION_API_URL: "http://verification-api:3000"
     volumes:
@@ -79,7 +79,7 @@ services:
       dockerfile: Dockerfile
     container_name: scatterid-shard-1
     ports:
-      - "3001:3000"
+      - "${PORT_SHARD_1:-3001}:3000"
     environment:
       NODE_INDEX: "1"
       DATA_DIR: "/app/data"
@@ -94,7 +94,7 @@ services:
       dockerfile: Dockerfile
     container_name: scatterid-shard-2
     ports:
-      - "3002:3000"
+      - "${PORT_SHARD_2:-3002}:3000"
     environment:
       NODE_INDEX: "2"
       DATA_DIR: "/app/data"
@@ -109,7 +109,7 @@ services:
       dockerfile: Dockerfile
     container_name: scatterid-shard-3
     ports:
-      - "3003:3000"
+      - "${PORT_SHARD_3:-3003}:3000"
     environment:
       NODE_INDEX: "3"
       DATA_DIR: "/app/data"
@@ -124,7 +124,7 @@ services:
       dockerfile: Dockerfile
     container_name: scatterid-shard-4
     ports:
-      - "3004:3000"
+      - "${PORT_SHARD_4:-3004}:3000"
     environment:
       NODE_INDEX: "4"
       DATA_DIR: "/app/data"
@@ -139,7 +139,7 @@ services:
       dockerfile: Dockerfile
     container_name: scatterid-shard-5
     ports:
-      - "3005:3000"
+      - "${PORT_SHARD_5:-3005}:3000"
     environment:
       NODE_INDEX: "5"
       DATA_DIR: "/app/data"

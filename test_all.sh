@@ -4,6 +4,12 @@ set -e
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd "$DIR"
 
+if [ -f .env ]; then
+  set -a
+  source .env
+  set +a
+fi
+
 echo "======================================================="
 echo "   ScatterID End-to-End Component Test Suite          "
 echo "======================================================="
@@ -11,6 +17,7 @@ echo "======================================================="
 # 1. Sync container files and ensure stack is online
 echo "[1/5] Syncing container code and verifying stack..."
 docker cp components/verification-api/src/. scatterid-verification:/app/src/ 2>/dev/null || true
+docker restart scatterid-verification 2>/dev/null || true
 docker compose up -d
 
 # Give containers a moment to settle
