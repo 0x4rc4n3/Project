@@ -85,9 +85,10 @@ def unpackage_route():
         if not isinstance(cred_id, str) or not uuid_regex.match(cred_id):
             return jsonify({"error": "Invalid parameter: credential.id must be a valid UUID v4", "code": "INVALID_PARAMETER"}), 400
 
-    # Enforce structure for shares
+    # Enforce structure for shares via strict regular expression
+    share_regex = re.compile(r'^[1-5]-[0-9a-f]+(:[0-9a-f]+)?$', re.IGNORECASE)
     for s in shares_subset:
-        if not isinstance(s, str) or "-" not in s:
+        if not isinstance(s, str) or not share_regex.match(s):
             return jsonify({"error": "Invalid parameter: shares must be string format index-value:checksum", "code": "INVALID_PARAMETER"}), 400
 
     try:
@@ -103,7 +104,8 @@ def unpackage_route():
             "recoveredData": recovered_bytes.decode("utf-8", errors="replace"),
         }), 200
     except Exception as e:
-        return jsonify({"error": str(e), "code": "RECONSTRUCTION_FAILED"}), 400
+        app.logger.error("Credential reconstruction failed", exc_info=True)
+        return jsonify({"error": "Credential reconstruction failed due to internal error", "code": "RECONSTRUCTION_FAILED"}), 400
 
 
 @app.route("/rotate", methods=["POST"])
@@ -116,7 +118,8 @@ def rotate_route():
             "public_key_len": len(PUBLIC_KEY)
         }), 200
     except Exception as e:
-        return jsonify({"error": str(e), "code": "ROTATION_FAILED"}), 500
+        app.logger.error("Key rotation operation failed", exc_info=True)
+        return jsonify({"error": "Key rotation operation failed due to internal KMS error", "code": "ROTATION_FAILED"}), 500
 
 
 import subprocess

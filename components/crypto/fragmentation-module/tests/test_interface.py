@@ -68,3 +68,32 @@ def test_different_share_combinations_all_reconstruct(keypair):
         recovered_claim = json.loads(recovered_bytes.decode("utf-8"))
         assert valid is True
         assert recovered_claim == claim
+
+
+def test_invalid_algorithm_raises_error(keypair):
+    _, private_key = keypair
+    claim = {"student": "Arcane"}
+
+    with pytest.raises(ValueError, match="Unsupported or insecure PQC signature algorithm"):
+        package_credential(claim, private_key, algorithm="INVALID-ALG")
+
+
+def test_invalid_types_raises_error(keypair):
+    _, private_key = keypair
+
+    # Passing string instead of dict for claim data
+    with pytest.raises(TypeError, match="Claim data must be a dictionary"):
+        package_credential("invalid_claim_type", private_key)
+
+
+def test_invalid_thresholds_raises_error(keypair):
+    _, private_key = keypair
+    claim = {"student": "Arcane"}
+
+    # k > n
+    with pytest.raises(ValueError, match="Threshold k cannot exceed total shards n"):
+        package_credential(claim, private_key, n=3, k=5)
+
+    # Negative bounds
+    with pytest.raises(ValueError, match="Parameters n and k must be positive integers"):
+        package_credential(claim, private_key, n=-3, k=2)
