@@ -50,10 +50,8 @@ done
 # Enable approle auth
 docker exec -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN=scatterid-vault-root-token vault.scatterid.com vault auth enable approle 2>/dev/null || true
 
-# Write custom security policy
-echo 'path "secret/data/scatterid/mldsa" { capabilities = ["create", "read", "update"] }
-path "secret/metadata/scatterid/mldsa" { capabilities = ["read"] }' | \
-docker exec -i -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN=scatterid-vault-root-token vault.scatterid.com vault policy write issuer-policy - >/dev/null
+# Write custom security policy from file
+docker exec -i -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN=scatterid-vault-root-token vault.scatterid.com vault policy write issuer-policy - < components/crypto/crypto-service/vault/policies/issuer-policy.hcl >/dev/null
 
 # Create/configure role
 docker exec -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN=scatterid-vault-root-token vault.scatterid.com vault write auth/approle/role/issuer-role token_policies="issuer-policy" token_ttl=1h token_max_ttl=4h >/dev/null

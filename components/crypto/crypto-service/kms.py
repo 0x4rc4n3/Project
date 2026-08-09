@@ -43,11 +43,14 @@ class KMS:
                 print(f"KMS Warning: Error reading key history file: {e}")
 
     def _save_disk_history(self):
-        """Persist public key history to disk."""
+        """Persist public key history to disk securely."""
         try:
             hex_keys = [k.hex() for k in self.public_key_history]
-            with open(HISTORY_FILE, 'w') as f:
-                json.dump(hex_keys, f)
+            flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+            mode = 0o600  # Owner read-write only
+            with os.open(HISTORY_FILE, flags, mode) as fd:
+                with os.fdopen(fd, 'w') as f:
+                    json.dump(hex_keys, f)
         except Exception as e:
             print(f"KMS Warning: Error saving key history file: {e}")
 
@@ -99,6 +102,8 @@ class KMS:
 
     def get_keys(self, algorithm: str = "ML-DSA-65"):
         """Retrieve active signing keypair, or generate if not present."""
+        if algorithm not in ["ML-DSA-44", "ML-DSA-65", "ML-DSA-87"]:
+            raise ValueError("Unsupported or insecure PQC algorithm standard requested")
         if not self.client:
             if not self.fallback_pub:
                 self.fallback_pub, self.fallback_priv = generate_keypair(algorithm)
@@ -151,6 +156,8 @@ class KMS:
 
     def rotate_keys(self, algorithm: str = "ML-DSA-65"):
         """Rotate active signing keypair, maintaining previous public keys in history."""
+        if algorithm not in ["ML-DSA-44", "ML-DSA-65", "ML-DSA-87"]:
+            raise ValueError("Unsupported or insecure PQC algorithm standard requested")
         public_key, private_key = generate_keypair(algorithm)
 
         if public_key not in self.public_key_history:
