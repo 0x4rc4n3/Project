@@ -3,16 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ScatterID Control Console</title>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <title>ScatterID Enterprise Platform</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&family=Roboto:wght@300;400;500;700;900&family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="demo.css">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
   <!-- Sidebar Navigation -->
   <nav class="sidebar">
     <div class="logo">
-      <div class="logo-box"></div>
+      <img src="logo.png" alt="ScatterID Logo" class="brand-logo-img">
       <span class="logo-text">ScatterID</span>
     </div>
     <ul class="nav-links">
@@ -21,6 +22,7 @@
       <li><a href="#" class="nav-link" data-tab="tab-diagnostics">Diagnostics Console</a></li>
       <li><a href="#" class="nav-link" data-tab="tab-architecture">System Architecture Map</a></li>
       <li><a href="#" class="nav-link" data-tab="tab-progress">Live Progress Ledger</a></li>
+      <li><a href="#" class="nav-link" data-tab="tab-demo">Presentation Demo</a></li>
     </ul>
     <div class="sidebar-footer">
       <div class="system-tag">
@@ -41,7 +43,7 @@
         <p class="subtitle">Post-Quantum Sharded Credential Verification Architecture</p>
       </div>
       <div class="header-right">
-        <a href="/demo" class="btn btn-primary" style="margin-right: 8px;">Presentation Demo ↗</a>
+        <a href="/demo" target="_blank" class="btn btn-outline" style="margin-right: 8px;">Standalone Demo ↗</a>
         <button class="btn btn-outline" id="refresh-all-btn">Refresh Data</button>
       </div>
     </header>
@@ -331,6 +333,115 @@
         </div>
       </section>
 
+      <!-- Tab Content: Presentation Demo (In-Dashboard Embedded Portal) -->
+      <section id="tab-demo" class="tab-pane">
+        <div class="view-toggle-container mb-6" style="justify-content: center; margin-bottom: 24px;">
+          <button class="toggle-btn active" id="btn-view-client-tab" data-view="client">Client Experience</button>
+          <button class="toggle-btn" id="btn-view-telemetry-tab" data-view="telemetry">Deep-Tech Telemetry</button>
+        </div>
+
+        <!-- Embedded View A: Client Experience -->
+        <div id="demo-tab-client" class="demo-subview active">
+          <div class="verification-card glass-panel">
+            <div class="card-title-row">
+              <h3>Verify Credential Integrity</h3>
+              <span class="status-indicator live"><span class="dot"></span> Network Active</span>
+            </div>
+
+            <div class="input-form">
+              <div class="input-group">
+                <label for="tab-credential-input">Credential Identifier (UUID v4)</label>
+                <div class="input-wrapper">
+                  <input type="text" id="tab-credential-input" placeholder="e.g. 56298928-58b6-4092-9cc6-b4e29fc1b2d5" autocomplete="off" spellcheck="false" />
+                  <button class="btn-verify" id="tab-btn-run-verify">Verify Credential</button>
+                </div>
+              </div>
+
+              <div class="sample-pills">
+                <span class="pill-label">Sample Issued Credentials:</span>
+                <div id="tab-sample-credentials-list">
+                  <span class="sample-pill loading">Loading database records...</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="result-panel hidden" id="tab-verification-result">
+              <div class="result-header">
+                <div class="badge-status-box valid" id="tab-result-status-badge">
+                  <span class="status-icon">✓</span>
+                  <span class="status-text">CRYPTOGRAPHICALLY VALIDATED</span>
+                </div>
+                <span class="timestamp-text" id="tab-result-issued-at">Issued: --</span>
+              </div>
+
+              <div class="result-details-grid">
+                <div class="detail-box">
+                  <span class="detail-label">Post-Quantum Algorithm</span>
+                  <span class="detail-value mono text-purple" id="tab-result-algo">ML-DSA-65 (FIPS 204)</span>
+                </div>
+                <div class="detail-box">
+                  <span class="detail-label">Shamir Secret Threshold</span>
+                  <span class="detail-value mono text-cyan" id="tab-result-shards">k = 3 of n = 5 Shards Validated</span>
+                </div>
+                <div class="detail-box">
+                  <span class="detail-label">Hyperledger Fabric Anchor</span>
+                  <span class="detail-value mono text-green" id="tab-result-anchor-status">Active (TxID Anchored)</span>
+                </div>
+                <div class="detail-box col-span-2">
+                  <span class="detail-label">Blockchain Anchor Transaction ID</span>
+                  <span class="detail-value mono text-muted break-all" id="tab-result-tx-id">--</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Embedded View B: Deep-Tech Telemetry -->
+        <div id="demo-tab-telemetry" class="demo-subview" style="display: none;">
+          <div class="telemetry-block glass-panel mb-6">
+            <div class="block-header">
+              <div>
+                <h3>5-Node Isolated SQLite Shard Matrix</h3>
+                <p class="block-sub">Physical multi-container database fragmentation (3-of-5 threshold scheme)</p>
+              </div>
+              <button class="btn-refresh-sm" id="tab-btn-refresh-shards">Refresh Matrix</button>
+            </div>
+
+            <div class="shard-grid" id="tab-telemetry-shard-matrix">
+              <div class="shard-card skeleton">Probing 5 isolated container shard nodes...</div>
+            </div>
+          </div>
+
+          <div class="grid grid-2">
+            <div class="telemetry-block glass-panel">
+              <div class="block-header">
+                <h3>ML-DSA-65 Post-Quantum Cryptography</h3>
+                <span class="tag purple">NIST FIPS 204 Standard</span>
+              </div>
+              <div class="tech-spec-list">
+                <div class="spec-row"><span class="spec-key">Signature Scheme:</span><span class="spec-val mono">ML-DSA-65 (Dilithium3)</span></div>
+                <div class="spec-row"><span class="spec-key">Security Category:</span><span class="spec-val mono">NIST Level 3 (AES-192 equivalent)</span></div>
+                <div class="spec-row"><span class="spec-key">Public Key Size:</span><span class="spec-val mono">1952 Bytes</span></div>
+                <div class="spec-row"><span class="spec-key">Secret Key Vault Engine:</span><span class="spec-val mono">HashiCorp Vault KV v2 (Port 8200)</span></div>
+              </div>
+            </div>
+
+            <div class="telemetry-block glass-panel">
+              <div class="block-header">
+                <h3>Hyperledger Fabric Ledger Telemetry</h3>
+                <span class="tag green">gRPC Mutual TLS Protocol</span>
+              </div>
+              <div class="tech-spec-list">
+                <div class="spec-row"><span class="spec-key">Channel Name:</span><span class="spec-val mono">scatterid-channel</span></div>
+                <div class="spec-row"><span class="spec-key">Go Chaincode:</span><span class="spec-val mono">scatterproof.go</span></div>
+                <div class="spec-row"><span class="spec-key">Orderer Node:</span><span class="spec-val mono">orderer.scatterid.com:7050 (Raft)</span></div>
+                <div class="spec-row"><span class="spec-key">Peers:</span><span class="spec-val mono">peer0.issuer (7051), peer0.verifier (8051)</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Attribution Footer -->
       <footer class="app-footer">
         ScatterID Engine v1.0.0 — Powered by Rynex Security
@@ -339,5 +450,6 @@
   </main>
 
   <script src="app.js"></script>
+  <script src="demo.js"></script>
 </body>
 </html>

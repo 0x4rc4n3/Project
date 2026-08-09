@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ScatterID Enterprise Presentation Portal</title>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&family=Roboto:wght@300;400;500;700;900&family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="demo.css">
 </head>
 <body>
@@ -12,7 +13,7 @@
     <!-- Header Navigation -->
     <header class="demo-header">
       <div class="brand">
-        <div class="brand-logo"></div>
+        <img src="logo.png" alt="ScatterID Logo" class="brand-logo-img">
         <div class="brand-text">
           <span class="brand-name">ScatterID</span>
           <span class="brand-tag">Enterprise Identity Engine</span>
@@ -22,11 +23,9 @@
       <!-- Dual-View Toggle Switch -->
       <div class="view-toggle-container">
         <button class="toggle-btn active" id="btn-view-client" data-view="client">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
           Client Experience
         </button>
         <button class="toggle-btn" id="btn-view-telemetry" data-view="telemetry">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
           Deep-Tech Telemetry
         </button>
       </div>
@@ -72,7 +71,7 @@
           <!-- Verification Result Badge Panel -->
           <div class="result-panel hidden" id="verification-result">
             <div class="result-header">
-              <div class="badge-status-box" id="result-status-badge">
+              <div class="badge-status-box valid" id="result-status-badge">
                 <span class="status-icon">✓</span>
                 <span class="status-text">CRYPTOGRAPHICALLY VALIDATED</span>
               </div>
@@ -113,7 +112,7 @@
           <div class="block-header">
             <div>
               <h3>5-Node Isolated SQLite Shard Matrix</h3>
-              <p class="block-sub">Physical multi-container database fragmentation ($3$-of-$5$ threshold scheme)</p>
+              <p class="block-sub">Physical multi-container database fragmentation (3-of-5 threshold scheme)</p>
             </div>
             <button class="btn-refresh-sm" id="btn-refresh-shards">Refresh Matrix</button>
           </div>

@@ -1,64 +1,95 @@
-// ScatterID Enterprise Presentation Portal JS
+// ScatterID Enterprise Presentation Portal JS (Standalone + Dashboard Tab)
 
 document.addEventListener('DOMContentLoaded', () => {
-  initViewToggle();
-  loadSampleCredentials();
-  loadShardTelemetry();
-
-  // Attach verify action
-  const btnVerify = document.getElementById('btn-run-verify');
-  const inputCred = document.getElementById('credential-input');
-
-  if (btnVerify && inputCred) {
-    btnVerify.addEventListener('click', () => {
-      const credId = inputCred.value.trim();
-      if (credId) {
-        verifyCredential(credId);
-      }
-    });
-
-    inputCred.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        const credId = inputCred.value.trim();
-        if (credId) {
-          verifyCredential(credId);
-        }
-      }
-    });
-  }
-
-  const btnRefreshShards = document.getElementById('btn-refresh-shards');
-  if (btnRefreshShards) {
-    btnRefreshShards.addEventListener('click', loadShardTelemetry);
-  }
+  initStandaloneDemo();
+  initTabDemo();
 });
 
-// Dual-View Switcher Logic
-function initViewToggle() {
+function initStandaloneDemo() {
   const btnClient = document.getElementById('btn-view-client');
   const btnTelemetry = document.getElementById('btn-view-telemetry');
   const viewClient = document.getElementById('view-client');
   const viewTelemetry = document.getElementById('view-telemetry');
 
-  btnClient.addEventListener('click', () => {
-    btnClient.classList.add('active');
-    btnTelemetry.classList.remove('active');
-    viewClient.classList.add('active');
-    viewTelemetry.classList.remove('active');
-  });
+  if (btnClient && btnTelemetry && viewClient && viewTelemetry) {
+    btnClient.addEventListener('click', () => {
+      btnClient.classList.add('active');
+      btnTelemetry.classList.remove('active');
+      viewClient.classList.add('active');
+      viewTelemetry.classList.remove('active');
+    });
 
-  btnTelemetry.addEventListener('click', () => {
-    btnTelemetry.classList.add('active');
-    btnClient.classList.remove('active');
-    viewTelemetry.classList.add('active');
-    viewClient.classList.remove('active');
-    loadShardTelemetry();
-  });
+    btnTelemetry.addEventListener('click', () => {
+      btnTelemetry.classList.add('active');
+      btnClient.classList.remove('active');
+      viewTelemetry.classList.add('active');
+      viewClient.classList.remove('active');
+      loadShardTelemetry('telemetry-shard-matrix');
+    });
+
+    loadSampleCredentials('sample-credentials-list', 'credential-input', verifyCredentialStandalone);
+    loadShardTelemetry('telemetry-shard-matrix');
+
+    const btnVerify = document.getElementById('btn-run-verify');
+    const inputCred = document.getElementById('credential-input');
+    if (btnVerify && inputCred) {
+      btnVerify.addEventListener('click', () => {
+        const val = inputCred.value.trim();
+        if (val) verifyCredentialStandalone(val);
+      });
+    }
+
+    const btnRefresh = document.getElementById('btn-refresh-shards');
+    if (btnRefresh) {
+      btnRefresh.addEventListener('click', () => loadShardTelemetry('telemetry-shard-matrix'));
+    }
+  }
 }
 
-// Load Sample Credentials from API
-async function loadSampleCredentials() {
-  const container = document.getElementById('sample-credentials-list');
+function initTabDemo() {
+  const btnTabClient = document.getElementById('btn-view-client-tab');
+  const btnTabTelemetry = document.getElementById('btn-view-telemetry-tab');
+  const viewTabClient = document.getElementById('demo-tab-client');
+  const viewTabTelemetry = document.getElementById('demo-tab-telemetry');
+
+  if (btnTabClient && btnTabTelemetry && viewTabClient && viewTabTelemetry) {
+    btnTabClient.addEventListener('click', () => {
+      btnTabClient.classList.add('active');
+      btnTabTelemetry.classList.remove('active');
+      viewTabClient.style.display = 'block';
+      viewTabTelemetry.style.display = 'none';
+    });
+
+    btnTabTelemetry.addEventListener('click', () => {
+      btnTabTelemetry.classList.add('active');
+      btnTabClient.classList.remove('active');
+      viewTabClient.style.display = 'none';
+      viewTabTelemetry.style.display = 'block';
+      loadShardTelemetry('tab-telemetry-shard-matrix');
+    });
+
+    loadSampleCredentials('tab-sample-credentials-list', 'tab-credential-input', verifyCredentialTab);
+    loadShardTelemetry('tab-telemetry-shard-matrix');
+
+    const btnVerify = document.getElementById('tab-btn-run-verify');
+    const inputCred = document.getElementById('tab-credential-input');
+    if (btnVerify && inputCred) {
+      btnVerify.addEventListener('click', () => {
+        const val = inputCred.value.trim();
+        if (val) verifyCredentialTab(val);
+      });
+    }
+
+    const btnRefresh = document.getElementById('tab-btn-refresh-shards');
+    if (btnRefresh) {
+      btnRefresh.addEventListener('click', () => loadShardTelemetry('tab-telemetry-shard-matrix'));
+    }
+  }
+}
+
+// Load Sample Credentials
+async function loadSampleCredentials(listContainerId, inputId, verifyFn) {
+  const container = document.getElementById(listContainerId);
   if (!container) return;
 
   try {
@@ -73,8 +104,9 @@ async function loadSampleCredentials() {
         pill.textContent = row.id.substring(0, 18) + '...';
         pill.title = `Click to verify ${row.id}`;
         pill.addEventListener('click', () => {
-          document.getElementById('credential-input').value = row.id;
-          verifyCredential(row.id);
+          const input = document.getElementById(inputId);
+          if (input) input.value = row.id;
+          verifyFn(row.id);
         });
         container.appendChild(pill);
       });
@@ -86,24 +118,52 @@ async function loadSampleCredentials() {
   }
 }
 
-// Perform Cryptographic & Ledger Verification
-async function verifyCredential(credentialId) {
-  const resultPanel = document.getElementById('verification-result');
-  const statusBadge = document.getElementById('result-status-badge');
-  const issuedAt = document.getElementById('result-issued-at');
-  const algoEl = document.getElementById('result-algo');
-  const shardsEl = document.getElementById('result-shards');
-  const anchorStatusEl = document.getElementById('result-anchor-status');
-  const txIdEl = document.getElementById('result-tx-id');
-  const btnVerify = document.getElementById('btn-run-verify');
+async function verifyCredentialStandalone(credentialId) {
+  await genericVerify(
+    credentialId,
+    'verification-result',
+    'result-status-badge',
+    'result-issued-at',
+    'result-algo',
+    'result-shards',
+    'result-anchor-status',
+    'result-tx-id',
+    'btn-run-verify'
+  );
+}
+
+async function verifyCredentialTab(credentialId) {
+  await genericVerify(
+    credentialId,
+    'tab-verification-result',
+    'tab-result-status-badge',
+    'tab-result-issued-at',
+    'tab-result-algo',
+    'tab-result-shards',
+    'tab-result-anchor-status',
+    'tab-result-tx-id',
+    'tab-btn-run-verify'
+  );
+}
+
+async function genericVerify(credentialId, resultPanelId, badgeId, issuedAtId, algoId, shardsId, anchorStatusId, txId, btnId) {
+  const resultPanel = document.getElementById(resultPanelId);
+  const statusBadge = document.getElementById(badgeId);
+  const issuedAt = document.getElementById(issuedAtId);
+  const algoEl = document.getElementById(algoId);
+  const shardsEl = document.getElementById(shardsId);
+  const anchorStatusEl = document.getElementById(anchorStatusId);
+  const txIdEl = document.getElementById(txId);
+  const btnVerify = document.getElementById(btnId);
 
   if (!resultPanel) return;
 
-  btnVerify.disabled = true;
-  btnVerify.textContent = 'Verifying...';
+  if (btnVerify) {
+    btnVerify.disabled = true;
+    btnVerify.textContent = 'Verifying...';
+  }
 
   try {
-    // Query API credentials list first to fetch local record metadata
     const resCreds = await fetch('/api/credentials');
     const credsData = await resCreds.json();
     const matchedRecord = credsData.credentials ? credsData.credentials.find(c => c.id === credentialId) : null;
@@ -114,34 +174,35 @@ async function verifyCredential(credentialId) {
       statusBadge.className = 'badge-status-box valid';
       statusBadge.innerHTML = '<span class="status-icon">✓</span> <span class="status-text">CRYPTOGRAPHICALLY VALIDATED</span>';
 
-      issuedAt.textContent = `Issued: ${new Date(matchedRecord.issued_at).toLocaleString()}`;
-      algoEl.textContent = `${matchedRecord.algorithm} (NIST FIPS 204)`;
-      shardsEl.textContent = 'k = 3 of n = 5 Shards Validated';
-      anchorStatusEl.textContent = `Anchored (${matchedRecord.status.toUpperCase()})`;
-      txIdEl.textContent = matchedRecord.anchor_tx_id || '07acf10ac6210a33e284000102b489c4501a47a78c4';
+      if (issuedAt) issuedAt.textContent = `Issued: ${new Date(matchedRecord.issued_at).toLocaleString()}`;
+      if (algoEl) algoEl.textContent = `${matchedRecord.algorithm} (NIST FIPS 204)`;
+      if (shardsEl) shardsEl.textContent = 'k = 3 of n = 5 Shards Validated';
+      if (anchorStatusEl) anchorStatusEl.textContent = `Anchored (${matchedRecord.status.toUpperCase()})`;
+      if (txIdEl) txIdEl.textContent = matchedRecord.anchor_tx_id || '07acf10ac6210a33e284000102b489c4501a47a78c4';
     } else {
-      // Direct fallback display for novel inputs
       statusBadge.className = 'badge-status-box valid';
       statusBadge.innerHTML = '<span class="status-icon">✓</span> <span class="status-text">PROOF ANCHORED & VERIFIED</span>';
 
-      issuedAt.textContent = `Timestamp: ${new Date().toLocaleString()}`;
-      algoEl.textContent = 'ML-DSA-65 (NIST FIPS 204)';
-      shardsEl.textContent = '3-of-5 Secret Shares Intact';
-      anchorStatusEl.textContent = 'Active Ledger Anchor';
-      txIdEl.textContent = credentialId;
+      if (issuedAt) issuedAt.textContent = `Timestamp: ${new Date().toLocaleString()}`;
+      if (algoEl) algoEl.textContent = 'ML-DSA-65 (NIST FIPS 204)';
+      if (shardsEl) shardsEl.textContent = '3-of-5 Secret Shares Intact';
+      if (anchorStatusEl) anchorStatusEl.textContent = 'Active Ledger Anchor';
+      if (txIdEl) txIdEl.textContent = credentialId;
     }
   } catch (err) {
     statusBadge.className = 'badge-status-box invalid';
     statusBadge.innerHTML = `<span class="status-icon">✕</span> <span class="status-text">VERIFICATION ERROR: ${err.message}</span>`;
   } finally {
-    btnVerify.disabled = false;
-    btnVerify.textContent = 'Verify Credential';
+    if (btnVerify) {
+      btnVerify.disabled = false;
+      btnVerify.textContent = 'Verify Credential';
+    }
   }
 }
 
 // Load 5-Node Shard Telemetry
-async function loadShardTelemetry() {
-  const container = document.getElementById('telemetry-shard-matrix');
+async function loadShardTelemetry(matrixContainerId) {
+  const container = document.getElementById(matrixContainerId);
   if (!container) return;
 
   try {
