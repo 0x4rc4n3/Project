@@ -1,17 +1,4 @@
 services:
-  vault:
-    image: hashicorp/vault:latest
-    container_name: scatterid-vault
-    ports:
-      - "${PORT_VAULT:-8200}:8200"
-    environment:
-      VAULT_DEV_ROOT_TOKEN_ID: "${VAULT_TOKEN:-dev-root-token}"
-      VAULT_ADDR: "http://127.0.0.1:8200"
-    cap_add:
-      - IPC_LOCK
-    networks:
-      - scatterid_net
-
   crypto-service:
     build:
       context: ./components/crypto/crypto-service
@@ -20,11 +7,9 @@ services:
     ports:
       - "${PORT_CRYPTO_SERVICE:-5001}:5001"
     environment:
-      VAULT_ADDR: "http://vault:8200"
-      VAULT_TOKEN: "${VAULT_TOKEN:-dev-root-token}"
+      VAULT_ADDR: "http://vault.scatterid.com:8200"
+      VAULT_TOKEN: "${VAULT_TOKEN:-scatterid-vault-root-token}"
       CRYPTO_SERVICE_API_KEY: "${CRYPTO_SERVICE_API_KEY:-dev-secret-key-123}"
-    depends_on:
-      - vault
     volumes:
       - ./components/crypto/certs:/app/certs
     networks:
@@ -39,6 +24,7 @@ services:
       - "${PORT_VERIFICATION_API:-3000}:3000"
     environment:
       CRYPTO_SERVICE_API_KEY: "${CRYPTO_SERVICE_API_KEY:-dev-secret-key-123}"
+      SHARD_NODE_API_KEY: "${SHARD_NODE_API_KEY:-scatterid-shard-secret-key-456}"
       CRYPTO_SERVICE_URL: "https://crypto-service:5001"
       NODE_EXTRA_CA_CERTS: "/app/certs/ca.crt"
       NODE_TLS_REJECT_UNAUTHORIZED: "0"
@@ -62,11 +48,13 @@ services:
       - "${PORT_DASHBOARD:-4000}:4000"
     environment:
       VERIFICATION_API_URL: "http://verification-api:3000"
+      SHARD_NODE_API_KEY: "${SHARD_NODE_API_KEY:-scatterid-shard-secret-key-456}"
     volumes:
       - ./Progress.md:/app/Progress.md
       - ./components/project-dashboard:/app
       - /app/node_modules
       - ./components/verification-api:/app/verification-api
+      - verification_data:/app/data:ro
       - /var/run/docker.sock:/var/run/docker.sock
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -83,6 +71,7 @@ services:
     environment:
       NODE_INDEX: "1"
       DATA_DIR: "/app/data"
+      SHARD_NODE_API_KEY: "${SHARD_NODE_API_KEY:-scatterid-shard-secret-key-456}"
     volumes:
       - shard_1_data:/app/data
     networks:
@@ -98,6 +87,7 @@ services:
     environment:
       NODE_INDEX: "2"
       DATA_DIR: "/app/data"
+      SHARD_NODE_API_KEY: "${SHARD_NODE_API_KEY:-scatterid-shard-secret-key-456}"
     volumes:
       - shard_2_data:/app/data
     networks:
@@ -113,6 +103,7 @@ services:
     environment:
       NODE_INDEX: "3"
       DATA_DIR: "/app/data"
+      SHARD_NODE_API_KEY: "${SHARD_NODE_API_KEY:-scatterid-shard-secret-key-456}"
     volumes:
       - shard_3_data:/app/data
     networks:
@@ -128,6 +119,7 @@ services:
     environment:
       NODE_INDEX: "4"
       DATA_DIR: "/app/data"
+      SHARD_NODE_API_KEY: "${SHARD_NODE_API_KEY:-scatterid-shard-secret-key-456}"
     volumes:
       - shard_4_data:/app/data
     networks:
@@ -143,6 +135,7 @@ services:
     environment:
       NODE_INDEX: "5"
       DATA_DIR: "/app/data"
+      SHARD_NODE_API_KEY: "${SHARD_NODE_API_KEY:-scatterid-shard-secret-key-456}"
     volumes:
       - shard_5_data:/app/data
     networks:
@@ -150,7 +143,8 @@ services:
 
 networks:
   scatterid_net:
-    driver: bridge
+    name: scatterid_net
+    external: true
 
 volumes:
   verification_data:

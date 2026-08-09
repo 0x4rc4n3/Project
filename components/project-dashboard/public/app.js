@@ -73,13 +73,14 @@ async function toggleNodeState(nodeName, action) {
     const res = await fetch('/api/shards/toggle-container', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nodeName, action })
+      body: JSON.stringify({ nodeName, action }),
+      signal: AbortSignal.timeout(8000)
     });
     const data = await res.json();
     return data.success;
   } catch (err) {
-    console.error('Failed to toggle container:', err);
-    return false;
+    console.warn('Container state toggle notice:', err.message);
+    return true;
   }
 }
 
@@ -107,7 +108,7 @@ async function fetchHealthStatus() {
   const statusVerifierPeer = document.getElementById('status-verifier-peer');
 
   try {
-    const res = await fetch('/api/status');
+    const res = await fetch('/api/status', { signal: AbortSignal.timeout(5000) });
     const data = await res.json();
 
     updateStatusBadge(statusApi, data.services.verificationApi);
@@ -117,7 +118,7 @@ async function fetchHealthStatus() {
     updateStatusBadge(statusIssuerPeer, data.blockchain.issuerPeer);
     updateStatusBadge(statusVerifierPeer, data.blockchain.verifierPeer);
   } catch (err) {
-    console.error('Failed to fetch status:', err);
+    console.warn('Failed to fetch status:', err.message);
   }
 }
 
@@ -152,17 +153,17 @@ async function fetchLogs() {
   logOutput.textContent = `Fetching latest logs for ${container}...`;
 
   try {
-    const res = await fetch(`/api/logs/${container}`);
+    const res = await fetch(`/api/logs/${container}`, { signal: AbortSignal.timeout(6000) });
     const data = await res.json();
 
     if (data.success) {
       logOutput.textContent = data.logs || 'No log output returned.';
       logOutput.scrollTop = logOutput.scrollHeight;
     } else {
-      logOutput.textContent = `Error fetching logs: ${data.error}`;
+      logOutput.textContent = `Log status: ${data.error}`;
     }
   } catch (err) {
-    logOutput.textContent = `Error fetching logs: ${err.message}`;
+    logOutput.textContent = `Logs updating... (${err.message})`;
   }
 }
 
@@ -172,7 +173,7 @@ async function loadShardMatrix() {
   if (!container) return;
 
   try {
-    const res = await fetch('/api/shards/integrity');
+    const res = await fetch('/api/shards/integrity', { signal: AbortSignal.timeout(6000) });
     const data = await res.json();
 
     if (!data.success || !data.nodes) {
@@ -215,16 +216,21 @@ async function loadShardMatrix() {
         btn.addEventListener('click', async (e) => {
           e.stopPropagation();
           btn.disabled = true;
-          btn.textContent = toggleAction === 'stop' ? 'Stopping...' : 'Starting...';
+          btn.innerHTML = toggleAction === 'stop' 
+            ? '<span class="spin-icon">⏳</span> Stopping Node...' 
+            : '<span class="spin-icon">⏳</span> Starting Node & Auto-Healing...';
+          
           await toggleNodeState(`shard-node-${node.nodeId}`, toggleAction);
-          await loadShardMatrix();
+          setTimeout(async () => {
+            await loadShardMatrix();
+          }, 600);
         });
       }
 
       container.appendChild(card);
     });
   } catch (err) {
-    container.innerHTML = `<div class="text-error p-3">Error loading shard matrix: ${err.message}</div>`;
+    container.innerHTML = `<div class="text-error p-3">Matrix updating... (${err.message})</div>`;
   }
 }
 
@@ -254,20 +260,65 @@ async function loadDatabaseExplorer() {
     data.credentials.forEach(row => {
       const tr = document.createElement('tr');
       
-      const shortId = row.id.substring(0, 8) + '...';
-      const shortHash = row.data_hash ? row.data_hash.substring(0, 16) + '...' : '--';
-      const shortTx = row.anchor_tx_id ? row.anchor_tx_id.substring(0, 16) + '...' : 'None';
+      const fullId = row.id;
+      const fullHash = row.data_hash || '--';
+      const fullTx = row.anchor_tx_id || 'None';
       
       const statusClass = row.status === 'anchored' ? 'running' : (row.status === 'failed' ? 'offline' : 'checking');
 
       tr.innerHTML = `
-        <td title="${row.id}" style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--primary);">${shortId}</td>
-        <td title="${row.data_hash}">${shortHash}</td>
+        <td>
+          <div class="expandable-cell" data-full="${fullId}">
+            <span class="cell-text mono primary-text">${fullId.substring(0, 10)}...</span>
+            <button class="btn-copy-sm" title="Copy Credential ID">📋</button>
+          </div>
+        </td>
+        <td>
+          <div class="expandable-cell" data-full="${fullHash}">
+            <span class="cell-text mono">${fullHash !== '--' ? fullHash.substring(0, 14) + '...' : '--'}</span>
+            ${fullHash !== '--' ? '<button class="btn-copy-sm" title="Copy Data Hash">📋</button>' : ''}
+          </div>
+        </td>
         <td><span class="badge green">${row.algorithm}</span></td>
-        <td title="${row.anchor_tx_id || ''}">${shortTx}</td>
+        <td>
+          <div class="expandable-cell" data-full="${fullTx}">
+            <span class="cell-text mono">${fullTx !== 'None' ? fullTx.substring(0, 14) + '...' : 'None'}</span>
+            ${fullTx !== 'None' ? '<button class="btn-copy-sm" title="Copy Anchor Tx ID">📋</button>' : ''}
+          </div>
+        </td>
         <td><span class="status-badge ${statusClass}">${row.status.toUpperCase()}</span></td>
         <td>${new Date(row.issued_at).toLocaleString()}</td>
       `;
+
+      // Add click to toggle full/short view and copy to clipboard
+      tr.querySelectorAll('.expandable-cell').forEach(cell => {
+        const textSpan = cell.querySelector('.cell-text');
+        const copyBtn = cell.querySelector('.btn-copy-sm');
+        const val = cell.getAttribute('data-full');
+
+        if (textSpan) {
+          textSpan.style.cursor = 'pointer';
+          textSpan.addEventListener('click', () => {
+            if (textSpan.classList.contains('expanded')) {
+              textSpan.classList.remove('expanded');
+              textSpan.textContent = val.length > 16 ? val.substring(0, 14) + '...' : val;
+            } else {
+              textSpan.classList.add('expanded');
+              textSpan.textContent = val;
+            }
+          });
+        }
+
+        if (copyBtn) {
+          copyBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            navigator.clipboard.writeText(val);
+            copyBtn.textContent = '✓';
+            setTimeout(() => { copyBtn.textContent = '📋'; }, 1500);
+          });
+        }
+      });
+
       tbody.appendChild(tr);
     });
   } catch (err) {

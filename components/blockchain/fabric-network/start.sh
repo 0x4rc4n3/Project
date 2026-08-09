@@ -25,7 +25,7 @@ fi
 if [ ! -f "channel-artifacts/scatterid-channel.block" ]; then
     echo "Generating channel genesis block..."
     mkdir -p channel-artifacts
-    $FABRIC_BIN/configtxgen -profile TwoOrgsApplicationGenesis -outputBlock channel-artifacts/scatterid-channel.block -channelID scatterid-channel
+    FABRIC_CFG_PATH="$DIR" $FABRIC_BIN/configtxgen -profile TwoOrgsApplicationGenesis -outputBlock channel-artifacts/scatterid-channel.block -channelID scatterid-channel
 else
     echo "Genesis block already exists."
 fi
@@ -103,8 +103,9 @@ set +e
 $FABRIC_BIN/peer lifecycle chaincode install scatterproof.tar.gz
 set -e
 
-# Package ID is fixed based on hash of content
-CC_PACKAGE_ID="scatterproof_1.0:4d8efcf252bdc6eae14136d1c765e2fffb568cbd8d4d32c9fd915ed9ec953b50"
+# Package ID calculated dynamically based on content
+CC_PACKAGE_ID=$($FABRIC_BIN/peer lifecycle chaincode calculatepackageid scatterproof.tar.gz)
+echo "Dynamic Package ID: $CC_PACKAGE_ID"
 
 # 8. Approve chaincode for Issuer
 echo "Approving chaincode definition for IssuerOrg..."

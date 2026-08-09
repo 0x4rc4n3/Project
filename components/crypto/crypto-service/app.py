@@ -37,7 +37,7 @@ def package_route():
     if not data or "claim" not in data:
         return jsonify({"error": "Missing 'claim' field", "code": "BAD_REQUEST"}), 400
 
-    credential = package_credential(data["claim"], PRIVATE_KEY)
+    credential = package_credential(data["claim"], PRIVATE_KEY, public_key=PUBLIC_KEY)
     return jsonify(credential), 201
 
 
@@ -48,12 +48,16 @@ def unpackage_route():
         return jsonify({"error": "Missing 'credential' or 'sharesSubset' field", "code": "BAD_REQUEST"}), 400
 
     try:
+        keys_to_use = getattr(kms, 'public_key_history', [PUBLIC_KEY])
+        if not keys_to_use:
+            keys_to_use = [PUBLIC_KEY]
+
         recovered_bytes, valid = unpackage_credential(
-            data["credential"], PUBLIC_KEY, data["sharesSubset"]
+            data["credential"], keys_to_use, data["sharesSubset"]
         )
         return jsonify({
             "valid": valid,
-            "recoveredData": recovered_bytes.decode("utf-8"),
+            "recoveredData": recovered_bytes.decode("utf-8", errors="replace"),
         }), 200
     except Exception as e:
         return jsonify({"error": str(e), "code": "RECONSTRUCTION_FAILED"}), 400

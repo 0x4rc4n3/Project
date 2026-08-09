@@ -1,45 +1,21 @@
-# Project Control Dashboard (`project-dashboard`)
+# Enterprise Deep-Tech Operator Control Dashboard
 
-The `project-dashboard` component is a developer control console and system health dashboard built with a strict Vercel/HashiCorp dark-mode aesthetic.
-
----
-
-## 1. System Role & Features
-
-- **Microservice Status Monitoring**: Uses low-latency TCP socket probing (`net.Socket`) to monitor health across ports `3000` (`verification-api`), `5001` (`crypto-service`), `7050` (Fabric Orderer), `7051` (Fabric Issuer Peer), and `8051` (Fabric Verifier Peer).
-- **Interactive E2E Diagnostics**: Features a multi-step smoke tester that executes real-time credential issuance, sharding across isolated SQLite nodes, and post-quantum verification.
-- **SQLite Database Explorer**: Provides real-time visibility into sharded credential tables (`credentials`, `shard_references`).
-- **Markdown Progress Renderer**: Dynamically parses and renders master `Progress.md` context.
+The `project-dashboard` microservice serves the ScatterID Operator Presentation Portal, providing interactive node fault simulation, deep-tech cryptographic telemetry, real-time log monitoring, and direct REST claim issuance.
 
 ---
 
-## 2. API Endpoints
+## 🎨 UI Architecture & Features
 
-- `GET /api/status`: Returns live operational status (`RUNNING` / `STOPPED` / `OFFLINE`) for microservices and Fabric nodes.
-- `GET /api/credentials`: Queries local SQLite database records and returns JSON array of issued credentials and shard metadata.
-- `POST /api/diagnostics/run`: Executes automated end-to-end issuance and verification diagnostic pipeline, returning step-by-step execution logs.
-- `GET /api/progress`: Reads and returns `Progress.md` contents.
+1. **Shard Telemetry Matrix**:
+   - Live status monitoring of Nodes 1..5.
+   - Interactive **Simulate Fault (Stop)** and **Recover Node (Auto-Heal)** controls backed by real Docker container execution (`docker stop` / `docker start`).
+   - Animated spinner loading indicators during container state transitions.
 
----
+2. **Issued Credentials & Database Explorer**:
+   - Multi-node SQLite record viewer with expandable/copyable cells for long base64/hex signature payloads and SHA3-256 hashes.
 
-## 3. Environment Variables
+3. **Hyperledger Fabric Log Streamer**:
+   - Full-height static log window with internal scrolling for real-time Peer & Orderer log output (`calc(100vh - 200px)`).
 
-| Variable | Default | Description |
-|---|---|---|
-| `PORT` | `4000` | HTTP port for the Express dashboard server. |
-| `VERIFICATION_API_URL` | `http://verification-api:3000` | Gateway URL for diagnostics smoke tests. |
-| `CRYPTO_SERVICE_HOST` | `crypto-service` | Hostname for crypto service TCP port checks. |
-| `VERIFICATION_API_HOST` | `verification-api` | Hostname for verification API TCP port checks. |
-
----
-
-## 4. Execution
-
-```bash
-# Install dependencies
-npm install
-
-# Start local server
-node server.js
-```
-Open `http://localhost:4000` in your web browser.
+4. **Issue & Anchor Control Section**:
+   - Low-level claim issuance interface reporting per-node shard dispatch telemetry (`WRITTEN` vs `OFFLINE_FAILED`).

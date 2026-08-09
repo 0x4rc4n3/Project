@@ -20,6 +20,11 @@ export async function verifyRoute(req, res) {
     });
   }
 
+  const recDataHash = record.data_hash || record.dataHash;
+  const recPrimeMod = record.prime_mod || record.primeMod;
+  const recRequiredShares = record.required_shares || record.requiredShares;
+  const recIssuedAt = record.issued_at || record.issuedAt;
+
   // 1. Verify anchor status on Hyperledger Fabric ledger
   let anchorStatus = record.status;
   let isAnchoredOnChain = false;
@@ -30,12 +35,12 @@ export async function verifyRoute(req, res) {
     isAnchoredOnChain = true;
 
     // Integrity check: verify ledger data hash matches database record data hash
-    if (fabricRecord.dataHash !== record.data_hash) {
+    if (fabricRecord.dataHash !== recDataHash) {
       console.warn(`WARNING: Ledger data hash mismatch for credential ${credentialId}`);
       return res.status(200).json({
         valid: false,
         anchorStatus: 'tampered_hash',
-        issuedAt: record.issued_at,
+        issuedAt: recIssuedAt,
         reason: 'Ledger data hash mismatch',
       });
     }
@@ -44,7 +49,7 @@ export async function verifyRoute(req, res) {
       return res.status(200).json({
         valid: false,
         anchorStatus: 'revoked',
-        issuedAt: record.issued_at,
+        issuedAt: recIssuedAt,
         reason: 'Credential has been revoked on the ledger',
       });
     }
@@ -59,14 +64,15 @@ export async function verifyRoute(req, res) {
 
   // Integrity check: verify each share's hash before trusting it
   const validShares = storedShares.filter((row) => {
+    if (!row || !row.share_value) return false;
     const computedHash = createHash('sha3-256').update(row.share_value).digest('hex');
-    if (computedHash !== row.share_hash) return false;
+    if (row.share_hash && computedHash.toLowerCase() !== row.share_hash.trim().toLowerCase()) return false;
 
     // Validate the SHA-256 checksum appended by fragmentation module
-    if (row.share_checksum) {
+    if (row.share_checksum && row.share_checksum.trim() !== '') {
       const coreShare = `${row.share_index}-${row.share_value}`;
       const computedChecksum = createHash('sha256').update(coreShare).digest('hex');
-      if (computedChecksum !== row.share_checksum) return false;
+      if (computedChecksum.toLowerCase() !== row.share_checksum.trim().toLowerCase()) return false;
     }
     
     return true;
@@ -77,29 +83,30 @@ export async function verifyRoute(req, res) {
     console.warn(`WARNING: ${corruptedCount} corrupted share(s) detected for credential ${credentialId}`);
   }
 
-  if (validShares.length < record.required_shares) {
+  if (validShares.length < recRequiredShares) {
     return res.status(200).json({
       valid: false,
       anchorStatus,
-      issuedAt: record.issued_at,
-      reason: `Insufficient valid shares: ${validShares.length} of ${record.required_shares} required (${corruptedCount} corrupted)`,
+      issuedAt: recIssuedAt,
+      reason: `Insufficient valid shares: ${validShares.length} of ${recRequiredShares} required (${corruptedCount} corrupted)`,
     });
   }
 
   const sharesSubset = validShares
-    .slice(0, record.required_shares)
+    .slice(0, recRequiredShares)
     .map((row) => `${row.share_index}-${row.share_value}`);
 
   const credential = {
-    data_hash: record.data_hash,
+    data_hash: recDataHash,
     signature: record.signature,
     algorithm: record.algorithm,
+    public_key: record.public_key || record.publicKey || null,
     shares: {
-      prime_mod: record.prime_mod,
-      required_shares: record.required_shares,
+      prime_mod: recPrimeMod,
+      required_shares: recRequiredShares,
       shares: sharesSubset,
     },
-    created_at: record.issued_at,
+    created_at: recIssuedAt,
   };
 
   try {
@@ -117,15 +124,18 @@ export async function verifyRoute(req, res) {
       return res.status(200).json({
         valid: false,
         anchorStatus,
-        issuedAt: record.issued_at,
+        issuedAt: recIssuedAt,
+        reason: 'Crypto microservice failed to unpackage shares',
       });
     }
 
     const result = await response.json();
+    const isValid = result.valid && (isAnchoredOnChain ? anchorStatus === 'active' : record.status !== 'revoked' && record.status !== 'failed');
     return res.status(200).json({
-      valid: result.valid && (isAnchoredOnChain ? anchorStatus === 'active' : true),
+      valid: isValid,
       anchorStatus,
-      issuedAt: record.issued_at,
+      issuedAt: recIssuedAt,
+      reason: isValid ? undefined : (anchorStatus === 'revoked' ? 'Credential revoked' : 'Signature or reconstruction invalid'),
     });
   } catch (err) {
     console.error('Error reaching crypto-service in verify:', err);

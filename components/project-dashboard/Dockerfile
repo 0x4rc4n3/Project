@@ -1,9 +1,8 @@
-FROM node:24
+FROM node:20
 
 WORKDIR /app
 
-# Install native compilation dependencies for SQLite and other native modules
-RUN apt-get update && apt-get install -y python3 make g++ docker.io && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y docker.io && rm -rf /var/lib/apt/lists/*
 
 # Copy package files and install dependencies
 COPY package*.json ./

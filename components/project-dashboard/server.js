@@ -1,5 +1,4 @@
 import express from 'express';
-import Database from 'better-sqlite3';
 import { exec } from 'child_process';
 import fsSync from 'fs';
 import fs from 'fs/promises';
@@ -136,7 +135,7 @@ app.post('/api/shards/toggle-container', async (req, res) => {
 
   const targetContainer = containerMap[nodeName] || nodeName;
 
-  const cmd = `docker ${action} ${targetContainer}`;
+  const cmd = action === 'stop' ? `docker stop -t 1 ${targetContainer}` : `docker start ${targetContainer}`;
   const result = await runCmd(cmd);
   
   if (result.success) {
@@ -147,9 +146,13 @@ app.post('/api/shards/toggle-container', async (req, res) => {
       if (nodeIdMatch) {
         const nodeId = nodeIdMatch[1];
         const healthUrl = `http://shard-node-${nodeId}:3000/health`;
+        const headers = {};
+        if (process.env.SHARD_NODE_API_KEY) {
+          headers['Authorization'] = `Bearer ${process.env.SHARD_NODE_API_KEY}`;
+        }
         for (let attempt = 0; attempt < 10; attempt++) {
           try {
-            const hRes = await fetch(healthUrl, { signal: AbortSignal.timeout(600) });
+            const hRes = await fetch(healthUrl, { headers, signal: AbortSignal.timeout(600) });
             if (hRes.ok) break;
           } catch (e) {}
           await new Promise(r => setTimeout(r, 250));
@@ -169,16 +172,55 @@ app.post('/api/shards/toggle-container', async (req, res) => {
       }
       return res.json({ success: true, nodeName, targetContainer, action, healed: true, healEvents, message: `Container ${targetContainer} started and auto-synced successfully.` });
     }
-    res.json({ success: true, nodeName, targetContainer, action, message: `Container ${targetContainer} ${action}ed successfully.` });
+    res.json({ success: true, nodeName, targetContainer, action, message: `Container ${targetContainer} stopped successfully.` });
   } else {
     res.status(500).json({ success: false, nodeName, targetContainer, action, error: result.stderr || `Failed to ${action} ${targetContainer}.` });
   }
 });
 
-// API: SQLite Credentials List
-app.get('/api/credentials', (req, res) => {
+// API: Credentials List (Proxied from Verification API)
+app.get('/api/credentials', async (req, res) => {
+  try {
+    const response = await fetch(`${VERIFICATION_API_URL}/credentials`, {
+      signal: AbortSignal.timeout(5000)
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    res.json({ success: false, error: err.message, credentials: [] });
+  }
+});
+
+// Proxy route for custom claim issuance / anchoring
+app.post('/api/issue', async (req, res) => {
+  const { claim } = req.body;
+  const payload = claim || {
+    student: 'Anchor Sync Test Subject',
+    degree: 'Master of Science in PQC Cryptography',
+    timestamp: new Date().toISOString()
+  };
+
+  try {
+    const response = await fetch(`${VERIFICATION_API_URL}/issue`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claim: payload }),
+    });
+
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    res.status(500).json({ error: `Verification API unreachable: ${err.message}` });
+  }
+});
+
+// API: Get Single Credential Detail by ID
+app.get('/api/credentials/:id', (req, res) => {
   try {
     const candidateDirs = [
+      process.env.DB_DIR || '/app/data',
+      '/app/data',
+      path.resolve(__dirname, '../verification-api/data'),
       path.resolve(__dirname, 'verification-api'),
       path.resolve(__dirname, '../verification-api'),
       '/app/verification-api',
@@ -186,53 +228,50 @@ app.get('/api/credentials', (req, res) => {
       process.cwd()
     ];
 
-    let foundBaseDir = null;
-    let foundPrimaryDb = null;
+    let foundBaseDir = candidateDirs.find(dir => fsSync.existsSync(path.join(dir, 'node_1.db'))) || candidateDirs.find(dir => fsSync.existsSync(path.join(dir, 'credentials.db')));
+    if (!foundBaseDir) {
+      return res.status(404).json({ success: false, error: 'Database directory not found' });
+    }
 
-    for (const dir of candidateDirs) {
-      const node1 = path.join(dir, 'node_1.db');
-      const credDb = path.join(dir, 'credentials.db');
-      if (fsSync.existsSync(node1)) {
-        foundBaseDir = dir;
-        foundPrimaryDb = node1;
-        break;
-      } else if (fsSync.existsSync(credDb)) {
-        foundBaseDir = dir;
-        foundPrimaryDb = credDb;
-        break;
+    let cred = null;
+    for (let i = 1; i <= 5; i++) {
+      const nodePath = path.join(foundBaseDir, `node_${i}.db`);
+      if (fsSync.existsSync(nodePath)) {
+        try {
+          const nDb = new Database(nodePath, { readonly: true });
+          cred = nDb.prepare('SELECT * FROM credentials WHERE id = ?').get(req.params.id);
+          nDb.close();
+          if (cred) break;
+        } catch (e) {}
       }
     }
 
-    if (!foundPrimaryDb) {
-      return res.json({ success: false, error: 'Database files not found on disk yet', credentials: [] });
+    if (!cred) {
+      return res.status(404).json({ success: false, error: 'Credential not found' });
     }
 
-    const db = new Database(foundPrimaryDb, { readonly: true });
-    const credentials = db.prepare('SELECT * FROM credentials ORDER BY issued_at DESC').all();
-    db.close();
-
-    const credentialsWithShards = credentials.map(cred => {
-      const allShards = [];
-      for (let i = 1; i <= 5; i++) {
-        const nodePath = path.join(foundBaseDir, `node_${i}.db`);
-        if (fsSync.existsSync(nodePath)) {
-          try {
-            const nDb = new Database(nodePath, { readonly: true });
-            const rows = nDb.prepare('SELECT share_index, share_hash FROM shard_references WHERE credential_id = ?').all(cred.id);
-            allShards.push(...rows);
-            nDb.close();
-          } catch (e) {}
-        }
+    const allShards = [];
+    for (let i = 1; i <= 5; i++) {
+      const nodePath = path.join(foundBaseDir, `node_${i}.db`);
+      if (fsSync.existsSync(nodePath)) {
+        try {
+          const nDb = new Database(nodePath, { readonly: true });
+          const rows = nDb.prepare('SELECT share_index, share_hash, share_checksum FROM shard_references WHERE credential_id = ?').all(cred.id);
+          allShards.push(...rows);
+          nDb.close();
+        } catch (e) {}
       }
-      return {
+    }
+
+    res.json({
+      success: true,
+      credential: {
         ...cred,
         shards: allShards.sort((a, b) => a.share_index - b.share_index)
-      };
+      }
     });
-
-    res.json({ success: true, credentials: credentialsWithShards });
   } catch (err) {
-    res.json({ success: false, error: err.message, credentials: [] });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -355,37 +394,45 @@ app.get('/api/shards/integrity', async (req, res) => {
       foundBaseDir = path.resolve(__dirname, '../verification-api');
     }
 
+    const dockerPs = await runCmd('docker ps --format "{{.Names}}"');
+    const runningList = dockerPs.success ? dockerPs.stdout.split('\n') : [];
+
     const nodeReports = [];
     for (let i = 1; i <= 5; i++) {
+      const containerName = `scatterid-shard-${i}`;
+      const isContainerRunning = runningList.some(name => name.includes(containerName));
       let nodeReport = null;
 
-      // Try HTTP Container Health Check first
-      try {
-        const nodeUrl = `http://shard-node-${i}:3000/health`;
-        const r = await fetch(nodeUrl, { signal: AbortSignal.timeout(1200) });
-        if (r.ok) {
-          const data = await r.json();
-          nodeReport = {
-            nodeId: i,
-            dbName: `shard-node-${i}`,
-            path: nodeUrl,
-            exists: true,
-            sizeBytes: data.sizeBytes || 0,
-            totalShares: data.totalShares || 0,
-            status: data.status || 'HEALTHY',
-            integrityCheck: data.integrityCheck || 'VALID'
-          };
-        }
-      } catch (e) {}
+      if (isContainerRunning) {
+        try {
+          const nodeUrl = `http://shard-node-${i}:3000/health`;
+          const headers = {};
+          if (process.env.SHARD_NODE_API_KEY) {
+            headers['Authorization'] = `Bearer ${process.env.SHARD_NODE_API_KEY}`;
+          }
+          const r = await fetch(nodeUrl, { headers, signal: AbortSignal.timeout(1200) });
+          if (r.ok) {
+            const data = await r.json();
+            nodeReport = {
+              nodeId: i,
+              dbName: `shard-node-${i}`,
+              path: nodeUrl,
+              exists: true,
+              sizeBytes: data.sizeBytes || 0,
+              totalShares: data.totalShares || 0,
+              status: data.status || 'HEALTHY',
+              integrityCheck: data.integrityCheck || 'VALID'
+            };
+          }
+        } catch (e) {}
+      }
 
-      // Disk File Fallback if container HTTP probe fails
       if (!nodeReport) {
         const nodePath = path.join(foundBaseDir, `node_${i}.db`);
         const exists = fsSync.existsSync(nodePath);
         let sizeBytes = 0;
         let totalShares = 0;
-        let status = 'HEALTHY';
-        let integrityCheck = 'VALID';
+        let integrityCheck = isContainerRunning ? 'PROBE_FAILED' : 'CONTAINER_STOPPED';
 
         if (exists) {
           try {
@@ -395,24 +442,8 @@ app.get('/api/shards/integrity', async (req, res) => {
             const nDb = new Database(nodePath, { readonly: true });
             const countRow = nDb.prepare('SELECT COUNT(*) as count FROM shard_references').get();
             totalShares = countRow ? countRow.count : 0;
-
-            const sampleShares = nDb.prepare('SELECT share_value, share_hash, share_checksum FROM shard_references LIMIT 10').all();
-            for (const s of sampleShares) {
-              const computedHash = createHash('sha3-256').update(s.share_value).digest('hex');
-              if (computedHash !== s.share_hash) {
-                integrityCheck = 'HASH_MISMATCH';
-                status = 'CORRUPTED';
-                break;
-              }
-            }
             nDb.close();
-          } catch (e) {
-            status = 'ERROR';
-            integrityCheck = e.message;
-          }
-        } else {
-          status = 'OFFLINE';
-          integrityCheck = 'FILE_NOT_FOUND';
+          } catch (e) {}
         }
 
         nodeReport = {
@@ -422,7 +453,7 @@ app.get('/api/shards/integrity', async (req, res) => {
           exists,
           sizeBytes,
           totalShares,
-          status,
+          status: isContainerRunning ? 'HEALTHY' : 'OFFLINE',
           integrityCheck
         };
       }

@@ -596,6 +596,83 @@ body {
 }
 .tag.purple { background: rgba(139, 92, 246, 0.15); color: var(--accent-purple); }
 .tag.green { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+.tag.amber { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); }
+
+/* Interactive Node Action Buttons */
+.btn-node-action {
+  margin-top: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+  font-family: var(--font-sans);
+}
+
+.btn-danger-sm {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+.btn-danger-sm:hover {
+  background: #ef4444;
+  color: #fff;
+}
+
+.btn-success-sm {
+  background: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+.btn-success-sm:hover {
+  background: #10b981;
+  color: #07090e;
+}
+
+/* Cryptographic Security Guarantees & Boundaries Panel */
+.crypto-guarantees-panel {
+  margin-top: 24px;
+  padding: 24px;
+  background: rgba(13, 17, 23, 0.9);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.guarantees-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.guarantee-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.guarantee-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.guarantee-desc {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
 
 /* Attribution Footer */
 .demo-footer {

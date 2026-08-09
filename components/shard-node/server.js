@@ -1,6 +1,6 @@
 import express from 'express';
 import Database from 'better-sqlite3';
-import { createHash } from 'crypto';
+import { createHash, createHmac } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 
@@ -10,6 +10,24 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const NODE_INDEX = process.env.NODE_INDEX || '1';
 const DATA_DIR = process.env.DATA_DIR || '/app/data';
+const SHARD_NODE_API_KEY = process.env.SHARD_NODE_API_KEY;
+
+// Inter-Service Authentication Middleware
+const authenticateInterService = (req, res, next) => {
+  if (!SHARD_NODE_API_KEY) return next();
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, error: 'Unauthorized: Missing or malformed Authorization header' });
+  }
+
+  const token = authHeader.substring(7).trim();
+  if (token !== SHARD_NODE_API_KEY) {
+    return res.status(403).json({ success: false, error: 'Forbidden: Invalid inter-service authentication token' });
+  }
+
+  next();
+};
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -83,7 +101,7 @@ app.get('/health', (req, res) => {
 });
 
 // Shard Storage Route
-app.post('/shard', (req, res) => {
+app.post('/shard', authenticateInterService, (req, res) => {
   try {
     const { record, share } = req.body;
     if (!record || !share) {
@@ -95,26 +113,38 @@ app.post('/shard', (req, res) => {
     const shareIndex = parseInt(indexStr, 10);
     const shareHash = createHash('sha3-256').update(value).digest('hex');
 
+    const normRecord = {
+      id: record.id,
+      dataHash: record.dataHash || record.data_hash,
+      algorithm: record.algorithm,
+      signature: record.signature,
+      primeMod: record.primeMod || record.prime_mod,
+      requiredShares: record.requiredShares || record.required_shares,
+      anchorTxId: record.anchorTxId || record.anchor_tx_id || null,
+      status: record.status || 'pending',
+      issuedAt: record.issuedAt || record.issued_at,
+    };
+
     db.transaction(() => {
-      stmts.insertCred.run(record);
+      stmts.insertCred.run(normRecord);
       stmts.insertShare.run({
-        id: `${record.id}-${shareIndex}`,
-        credentialId: record.id,
+        id: `${normRecord.id}-${shareIndex}`,
+        credentialId: normRecord.id,
         shareIndex,
         shareValue: value,
         shareHash,
-        shareChecksum: checksum
+        shareChecksum: checksum || null
       });
     })();
 
-    res.status(201).json({ success: true, nodeId: NODE_INDEX, credentialId: record.id });
+    res.status(201).json({ success: true, nodeId: NODE_INDEX, credentialId: normRecord.id });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
 // Get Shard Route
-app.get('/shard/:credentialId', (req, res) => {
+app.get('/shard/:credentialId', authenticateInterService, (req, res) => {
   try {
     const cred = stmts.getCred.get(req.params.credentialId);
     const share = stmts.getShare.get(req.params.credentialId);
@@ -125,7 +155,7 @@ app.get('/shard/:credentialId', (req, res) => {
 });
 
 // Update Status / Anchor Route
-app.post('/update-status', (req, res) => {
+app.post('/update-status', authenticateInterService, (req, res) => {
   try {
     const { credentialId, status, anchorTxId } = req.body;
     if (anchorTxId) {
@@ -140,7 +170,7 @@ app.post('/update-status', (req, res) => {
 });
 
 // Integrity Check Route
-app.get('/integrity', (req, res) => {
+app.get('/integrity', authenticateInterService, (req, res) => {
   try {
     const shares = stmts.getAllShares.all();
     let isCorrupted = false;
@@ -166,4 +196,14 @@ app.get('/integrity', (req, res) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`ScatterID Shard Node ${NODE_INDEX} running on port ${PORT}`);
+});
+
+process.on('SIGTERM', () => {
+  console.log(`Shard Node ${NODE_INDEX} received SIGTERM, exiting...`);
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log(`Shard Node ${NODE_INDEX} received SIGINT, exiting...`);
+  process.exit(0);
 });

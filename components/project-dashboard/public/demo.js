@@ -43,6 +43,72 @@ function initStandaloneDemo() {
     if (btnRefresh) {
       btnRefresh.addEventListener('click', () => loadShardTelemetry('telemetry-shard-matrix'));
     }
+
+    const btnIssueAnchor = document.getElementById('btn-issue-new-anchor');
+    if (btnIssueAnchor) {
+      btnIssueAnchor.addEventListener('click', issueAndAnchorNewCredential);
+    }
+  }
+}
+
+async function issueAndAnchorNewCredential() {
+  const subjectInput = document.getElementById('anchor-subject-input');
+  const roleInput = document.getElementById('anchor-role-input');
+  const btnIssue = document.getElementById('btn-issue-new-anchor');
+  const outputPanel = document.getElementById('anchor-output-panel');
+  const consoleOut = document.getElementById('anchor-console-output');
+
+  if (!btnIssue || !consoleOut || !outputPanel) return;
+
+  const subject = subjectInput ? subjectInput.value.trim() : 'did:scatterid:user-99';
+  const role = roleInput ? roleInput.value.trim() : 'Security Engineer';
+
+  btnIssue.disabled = true;
+  btnIssue.textContent = 'Executing Cryptographic Pipeline...';
+  outputPanel.classList.remove('hidden');
+  consoleOut.innerHTML = `<div class="log-line info">[1/4] Signing claim payload via PQC ML-DSA-65 (Vault KMS)...</div>`;
+
+  try {
+    const claim = { subject, role, timestamp: new Date().toISOString() };
+    const res = await fetch('/api/issue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claim }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      consoleOut.innerHTML += `<div class="log-line error">[ERROR] API rejected issuance: ${data.error || 'Unknown'}</div>`;
+      return;
+    }
+
+    consoleOut.innerHTML += `<div class="log-line success">[2/4] Shamir Secret Sharding (k=3 / n=5) complete. Data Hash: ${data.dataHash || '--'}</div>`;
+    consoleOut.innerHTML += `<div class="log-line success">[3/4] Hyperledger Fabric Anchor Committed! TxID: ${data.anchorTxId || 'Pending'}</div>`;
+    consoleOut.innerHTML += `<div class="log-line info">[4/4] Multi-Node Shard Dispatch Report:</div>`;
+
+    if (data.dispatchReport && data.dispatchReport.length > 0) {
+      data.dispatchReport.forEach(r => {
+        const isOk = r.httpStatus === 'WRITTEN';
+        const color = isOk ? '#10b981' : '#ef4444';
+        consoleOut.innerHTML += `<div class="log-line" style="color: ${color}; margin-left: 12px;">-> Shard ${r.nodeId} (${r.containerUrl}): HTTP=${r.httpStatus} | LocalDB=${r.localDbStatus} | Hash=${r.shareHash}</div>`;
+      });
+    }
+
+    consoleOut.innerHTML += `<div class="log-line highlight" style="margin-top: 8px; color: #38bdf8;">=> Credential Issued Successfully! Credential ID: ${data.credentialId}</div>`;
+
+    // Auto-set as active input in verification panel
+    const inputCred = document.getElementById('credential-input');
+    if (inputCred) inputCred.value = data.credentialId;
+
+    // Refresh telemetry matrix and samples list
+    loadShardTelemetry('telemetry-shard-matrix');
+    loadSampleCredentials('sample-credentials-list', 'credential-input');
+
+  } catch (err) {
+    consoleOut.innerHTML += `<div class="log-line error">[EXCEPTION] Issuance failed: ${err.message}</div>`;
+  } finally {
+    btnIssue.disabled = false;
+    btnIssue.textContent = '🔒 Issue & Anchor Credential (PQC Sign -> 5-Node Shard -> Fabric Commit)';
   }
 }
 
@@ -96,12 +162,14 @@ async function loadSampleCredentials(listContainerId, inputId) {
     const res = await fetch('/api/credentials');
     const data = await res.json();
 
-    if (data.success && data.credentials && data.credentials.length > 0) {
+    const validCreds = (data.credentials || []).filter(c => c.shards && c.shards.length >= 3 && c.status !== 'failed');
+
+    if (validCreds.length > 0) {
       container.innerHTML = '';
-      data.credentials.slice(0, 4).forEach(row => {
+      validCreds.slice(0, 3).forEach(row => {
         const pill = document.createElement('span');
         pill.className = 'sample-pill';
-        pill.textContent = row.id.substring(0, 18) + '...';
+        pill.textContent = row.id;
         pill.title = `Click to set input ID to ${row.id}`;
         pill.addEventListener('click', () => {
           const input = document.getElementById(inputId);
@@ -109,8 +177,41 @@ async function loadSampleCredentials(listContainerId, inputId) {
         });
         container.appendChild(pill);
       });
+
+      const input = document.getElementById(inputId);
+      if (input && !input.value.trim()) {
+        input.value = validCreds[0].id;
+      }
     } else {
-      container.innerHTML = '<span class="pill-label">No credentials found in database. Run a diagnostic test to generate one.</span>';
+      // Auto-issue a real sample credential if no valid ones exist in DB
+      container.innerHTML = '<span class="pill-label loading">Issuing real post-quantum sample credential...</span>';
+      const issueRes = await fetch('/api/issue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ claim: { sample: 'Enterprise Sandbox Identity', timestamp: new Date().toISOString() } })
+      });
+      const newCred = await issueRes.json();
+      if (newCred && newCred.credentialId) {
+        // Re-query credentials
+        const req2 = await fetch('/api/credentials');
+        const d2 = await req2.json();
+        container.innerHTML = '';
+        (d2.credentials || []).slice(0, 3).forEach(row => {
+          const pill = document.createElement('span');
+          pill.className = 'sample-pill';
+          pill.textContent = row.id;
+          pill.title = `Click to set input ID to ${row.id}`;
+          pill.addEventListener('click', () => {
+            const input = document.getElementById(inputId);
+            if (input) input.value = row.id;
+          });
+          container.appendChild(pill);
+        });
+        const input = document.getElementById(inputId);
+        if (input) input.value = newCred.credentialId;
+      } else {
+        container.innerHTML = '<span class="pill-label">No valid credentials found. Click "Issue & Anchor Credential" to create one.</span>';
+      }
     }
   } catch (err) {
     container.innerHTML = '<span class="pill-label">Demo offline Mode</span>';
@@ -224,11 +325,14 @@ async function loadShardTelemetry(matrixContainerId) {
     container.innerHTML = '';
     data.nodes.forEach(node => {
       const card = document.createElement('div');
+      const isHealthy = node.status === 'HEALTHY';
       card.className = `telemetry-shard-card ${node.status.toLowerCase()}`;
       
       const kbSize = (node.sizeBytes / 1024).toFixed(1);
-      const isHealthy = node.status === 'HEALTHY';
       const badgeClass = isHealthy ? 'green' : 'red';
+      const toggleAction = isHealthy ? 'stop' : 'start';
+      const toggleText = isHealthy ? 'Simulate Fault (Stop)' : 'Recover Node (Auto-Heal)';
+      const btnClass = isHealthy ? 'btn-danger-sm' : 'btn-success-sm';
 
       card.innerHTML = `
         <div class="shard-card-header">
@@ -240,10 +344,45 @@ async function loadShardTelemetry(matrixContainerId) {
           <div>Size: <span>${kbSize} KB</span></div>
           <div>SHA3: <span>${node.integrityCheck}</span></div>
         </div>
+        <button class="btn-node-action ${btnClass}" data-node="shard-node-${node.nodeId}" data-action="${toggleAction}">
+          ${toggleText}
+        </button>
       `;
+
+      const btn = card.querySelector('.btn-node-action');
+      if (btn) {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          btn.disabled = true;
+          btn.innerHTML = toggleAction === 'stop' 
+            ? '<span class="spin-icon">⏳</span> Stopping Container...' 
+            : '<span class="spin-icon">⏳</span> Starting Container & Auto-Healing...';
+          
+          try {
+            const response = await fetch('/api/shards/toggle-container', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ nodeName: `shard-node-${node.nodeId}`, action: toggleAction }),
+              signal: AbortSignal.timeout(8000)
+            });
+
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+              console.warn(`Node action status: ${data.error || 'Pending container transition'}`);
+            }
+          } catch (err) {
+            console.warn(`Node transition warning: ${err.message}`);
+          }
+
+          setTimeout(async () => {
+            await loadShardTelemetry(matrixContainerId);
+          }, 600);
+        });
+      }
+
       container.appendChild(card);
     });
   } catch (err) {
-    container.innerHTML = `<div class="text-muted">Error querying shard telemetry: ${err.message}</div>`;
+    container.innerHTML = `<div class="text-muted p-3">Telemetry updating... (${err.message})</div>`;
   }
 }

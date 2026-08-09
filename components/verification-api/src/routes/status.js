@@ -1,9 +1,9 @@
 import { getCredentialById } from '../db/models.js';
 
-export function statusRoute(req, res) {
+export async function statusRoute(req, res) {
   const { id } = req.params;
 
-  const record = getCredentialById(id);
+  const record = await getCredentialById(id);
 
   if (!record) {
     return res.status(404).json({
@@ -14,10 +14,10 @@ export function statusRoute(req, res) {
 
   return res.status(200).json({
     id: record.id,
-    dataHash: record.data_hash,
+    dataHash: record.data_hash || record.dataHash,
     algorithm: record.algorithm,
-    anchorTxId: record.anchor_tx_id,
+    anchorTxId: record.anchor_tx_id || record.anchorTxId || null,
     status: record.status,
-    issuedAt: record.issued_at,
+    issuedAt: record.issued_at || record.issuedAt,
   });
 }

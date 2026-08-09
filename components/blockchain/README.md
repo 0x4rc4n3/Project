@@ -1,19 +1,22 @@
-# Blockchain Component (`blockchain`)
+# Hyperledger Fabric Ledger Infrastructure & Go Chaincode
 
-The `blockchain` component houses the Go smart contract (`chaincode`) and local Hyperledger Fabric v2.5 network configuration.
+The `blockchain` component anchors post-quantum credential state hashes immutably to a multi-organization Hyperledger Fabric network running Raft consensus and Mutual TLS.
 
 ---
 
-## 1. Network Topology & Smart Contract
+## ⛓ Network Architecture
 
-### Hyperledger Fabric Network
-- **Orderer Node**: `orderer.scatterid.com` (Raft consensus, ports `7050` gRPC / `7053` OSN admin).
-- **Issuer MSP (`IssuerMSP`)**: `peer0.issuer.scatterid.com` (port `7051`).
-- **Verifier MSP (`VerifierMSP`)**: `peer0.verifier.scatterid.com` (port `8051`).
+- **Orderer Node**: `orderer.scatterid.com:7050` (Raft Consensus, port `7050` gRPC / `7053` OSN admin).
+- **Issuer Peer (Org1)**: `peer0.issuer.scatterid.com:7051` (port `7051` gRPC).
+- **Verifier Peer (Org2)**: `peer0.verifier.scatterid.com:8051` (port `8051` gRPC).
 - **Channel**: `scatterid-channel`.
+- **Chaincode**: `scatterproof` (Written in Go using `fabric-contract-api-go`).
 
-### Chaincode Architecture (`scatterproof.go`)
-Written in Go using `fabric-contract-api-go`. Data structure:
+---
+
+## 📜 Go Chaincode (`scatterproof.go`)
+
+### Data Structure: `ProofRecord`
 ```go
 type ProofRecord struct {
     CredentialID string `json:"credentialId"`
@@ -24,30 +27,8 @@ type ProofRecord struct {
 }
 ```
 
-#### Smart Contract Methods
-- `AnchorProof(ctx, credentialID, dataHash, issuerID, timestamp)`: Writes new `ProofRecord` state with `Status="active"`. Checks client identity MSP ID.
+### Key Invocation Methods
+- `AnchorProof(ctx, credentialID, dataHash, issuerID, timestamp)`: Writes new `ProofRecord` state with `Status="active"`. Enforces client identity MSP verification.
 - `QueryProof(ctx, credentialID)`: Evaluates and returns stored `ProofRecord` JSON.
-- `RevokeProof(ctx, credentialID, issuerID)`: Updates `ProofRecord` status to `"revoked"`.
+- `RevokeProof(ctx, credentialID, requestingIssuerID)`: Updates `ProofRecord` status to `"revoked"`. Validates that the original issuer matches the caller.
 - `ProofExists(ctx, credentialID)`: Returns boolean indicating whether a proof exists.
-
----
-
-## 2. Operations & Execution
-
-### Starting Network
-```bash
-cd fabric-network
-./start.sh
-```
-
-### Stopping Network
-```bash
-cd fabric-network
-./stop.sh
-```
-
-### Chaincode Testing
-```bash
-cd chaincode/src
-go test -v ./...
-```

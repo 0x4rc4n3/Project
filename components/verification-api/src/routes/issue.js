@@ -43,12 +43,13 @@ export async function issueRoute(req, res) {
 
   const id = randomUUID();
 
-  createCredential(
+  const dispatchReport = await createCredential(
     {
       id,
       dataHash: credential.data_hash,
       algorithm: credential.algorithm,
       signature: credential.signature,
+      publicKey: credential.public_key || null,
       primeMod: credential.shares.prime_mod,
       requiredShares: credential.shares.required_shares,
       anchorTxId: null,
@@ -61,15 +62,22 @@ export async function issueRoute(req, res) {
   let anchorTxId = null;
   try {
     anchorTxId = await anchorProof(id, credential.data_hash, 'IssuerMSP');
-    updateAnchorInfo(id, anchorTxId, 'anchored');
+    await updateAnchorInfo(id, anchorTxId, 'anchored');
   } catch (err) {
     console.error(`Fabric anchoring failed for credential ${id}:`, err);
-    updateStatus(id, 'failed');
+    await updateStatus(id, 'failed');
   }
 
   return res.status(201).json({
     status: anchorTxId ? 'anchored' : 'pending',
     credentialId: id,
+    dataHash: credential.data_hash,
+    algorithm: credential.algorithm,
     anchorTxId,
+    dispatchReport,
+    shares: {
+      required: credential.shares.required_shares,
+      total: credential.shares.total_shares || 5,
+    }
   });
 }

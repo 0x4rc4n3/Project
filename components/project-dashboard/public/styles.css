@@ -453,6 +453,8 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
+  height: calc(100vh - 200px);
+  min-height: 520px;
 }
 
 .log-container, .console-body {
@@ -461,12 +463,27 @@ body {
   border-radius: 8px;
   padding: 16px;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   line-height: 1.5;
-  color: #a7f3d0;
-  overflow-y: auto;
-  min-height: calc(100vh - 240px);
+  color: #38bdf8;
+  overflow: hidden;
+  height: 100%;
+  max-height: 100%;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+#log-output {
+  white-space: pre-wrap;
+  word-break: break-all;
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  margin: 0;
+  padding-right: 8px;
+  color: #a7f3d0;
+  font-family: var(--font-mono);
 }
 
 .log-controls {
@@ -585,6 +602,42 @@ th {
 
 td {
   font-family: var(--font-mono);
+}
+
+.expandable-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.cell-text {
+  word-break: break-all;
+  transition: all 0.2s ease;
+}
+
+.cell-text.expanded {
+  color: var(--primary) !important;
+  font-weight: 700;
+  background: rgba(16, 185, 129, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.btn-copy-sm {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-copy-sm:hover {
+  background: var(--primary);
+  color: #07090e;
 }
 
 /* Responsive adjustments */

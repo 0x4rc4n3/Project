@@ -21,6 +21,7 @@ for (let i = 1; i <= NUM_NODES; i++) {
       data_hash TEXT NOT NULL,
       algorithm TEXT NOT NULL,
       signature TEXT NOT NULL,
+      publicKey TEXT,
       prime_mod TEXT NOT NULL,
       required_shares INTEGER NOT NULL,
       anchor_tx_id TEXT,
@@ -41,22 +42,37 @@ for (let i = 1; i <= NUM_NODES; i++) {
     CREATE INDEX IF NOT EXISTS idx_shard_refs_credential ON shard_references(credential_id);
   `);
 
+  try {
+    nodeDb.exec("ALTER TABLE credentials ADD COLUMN publicKey TEXT;");
+  } catch (e) {}
+
   const stmts = {
     insertCred: nodeDb.prepare(`
-      INSERT OR IGNORE INTO credentials (id, data_hash, algorithm, signature, prime_mod, required_shares, anchor_tx_id, status, issued_at)
-      VALUES (@id, @dataHash, @algorithm, @signature, @primeMod, @requiredShares, @anchorTxId, @status, @issuedAt)
+      INSERT OR IGNORE INTO credentials (id, data_hash, algorithm, signature, publicKey, prime_mod, required_shares, anchor_tx_id, status, issued_at)
+      VALUES (@id, @dataHash, @algorithm, @signature, @publicKey, @primeMod, @requiredShares, @anchorTxId, @status, @issuedAt)
     `),
     insertShare: nodeDb.prepare(`
       INSERT OR REPLACE INTO shard_references (id, credential_id, share_index, share_value, share_hash, share_checksum)
       VALUES (@id, @credentialId, @shareIndex, @shareValue, @shareHash, @shareChecksum)
     `),
     getCred: nodeDb.prepare('SELECT * FROM credentials WHERE id = ?'),
+    getShare: nodeDb.prepare('SELECT * FROM shard_references WHERE credential_id = ?'),
     getShares: nodeDb.prepare('SELECT * FROM shard_references WHERE credential_id = ?'),
     updateStatus: nodeDb.prepare('UPDATE credentials SET status = ? WHERE id = ?'),
     updateAnchor: nodeDb.prepare('UPDATE credentials SET anchor_tx_id = ?, status = ? WHERE id = ?'),
   };
 
   nodes.push({ db: nodeDb, stmts, nodeId: i });
+}
+
+const SHARD_NODE_API_KEY = process.env.SHARD_NODE_API_KEY;
+
+function getAuthHeaders(extraHeaders = {}) {
+  const headers = { 'Content-Type': 'application/json', ...extraHeaders };
+  if (SHARD_NODE_API_KEY) {
+    headers['Authorization'] = `Bearer ${SHARD_NODE_API_KEY}`;
+  }
+  return headers;
 }
 
 // Helper to get shard node URL
@@ -69,6 +85,21 @@ function getShardNodeUrl(nodeId) {
 }
 
 export async function createCredential(record, shares) {
+  const normRecord = {
+    id: record.id,
+    dataHash: record.dataHash || record.data_hash,
+    algorithm: record.algorithm,
+    signature: record.signature,
+    publicKey: record.publicKey || record.public_key || null,
+    primeMod: record.primeMod || record.prime_mod,
+    requiredShares: record.requiredShares || record.required_shares,
+    anchorTxId: record.anchorTxId || record.anchor_tx_id || null,
+    status: record.status || 'pending',
+    issuedAt: record.issuedAt || record.issued_at,
+  };
+
+  const dispatchReport = [];
+
   for (const share of shares) {
     const [core, checksum] = share.split(':');
     const [indexStr, value] = core.split('-');
@@ -77,39 +108,68 @@ export async function createCredential(record, shares) {
 
     if (nodeIndex >= 0 && nodeIndex < NUM_NODES) {
       const nodeUrl = getShardNodeUrl(shareIndex);
+      let httpSuccess = false;
       try {
-        await fetch(`${nodeUrl}/shard`, {
+        const res = await fetch(`${nodeUrl}/shard`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ record, share }),
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ record: normRecord, share }),
           signal: AbortSignal.timeout(2000)
         });
+        httpSuccess = res.ok;
       } catch (err) {
         console.warn(`Failed to dispatch share ${shareIndex} to ${nodeUrl}:`, err.message);
       }
 
-      const { db, stmts } = nodes[nodeIndex];
       const shareHash = createHash('sha3-256').update(value).digest('hex');
+      let localSuccess = false;
 
-      db.transaction(() => {
-        stmts.insertCred.run(record);
-        stmts.insertShare.run({
-          id: `${record.id}-${shareIndex}`,
-          credentialId: record.id,
-          shareIndex,
-          shareValue: value,
-          shareHash,
-          shareChecksum: checksum,
-        });
-      })();
+      // Replicate credential record across ALL local node DBs so any node can fulfill metadata queries,
+      // and store the specific share in nodeIndex's local DB.
+      for (let n = 0; n < NUM_NODES; n++) {
+        const { db, stmts } = nodes[n];
+        try {
+          db.transaction(() => {
+            stmts.insertCred.run(normRecord);
+            if (n === nodeIndex) {
+              stmts.insertShare.run({
+                id: `${normRecord.id}-${shareIndex}`,
+                credentialId: normRecord.id,
+                shareIndex,
+                shareValue: value,
+                shareHash,
+                shareChecksum: checksum || null,
+              });
+            }
+          })();
+          if (n === nodeIndex) localSuccess = true;
+        } catch (err) {
+          console.warn(`Local SQLite write error on node ${n + 1}:`, err.message);
+        }
+      }
+
+      dispatchReport.push({
+        nodeId: shareIndex,
+        shareIndex,
+        containerUrl: nodeUrl,
+        httpStatus: httpSuccess ? 'WRITTEN' : 'OFFLINE_FAILED',
+        localDbStatus: localSuccess ? 'WRITTEN' : 'FAILED',
+        shareHash: shareHash.substring(0, 16) + '...'
+      });
     }
   }
+
+  return dispatchReport;
 }
 
 export async function getCredentialById(id) {
+  // 1. Try HTTP endpoints of all shard nodes
   for (let i = 1; i <= NUM_NODES; i++) {
     try {
-      const response = await fetch(`${getShardNodeUrl(i)}/shard/${id}`, { signal: AbortSignal.timeout(1500) });
+      const response = await fetch(`${getShardNodeUrl(i)}/shard/${id}`, {
+        headers: getAuthHeaders(),
+        signal: AbortSignal.timeout(1500)
+      });
       if (response.ok) {
         const data = await response.json();
         if (data.credential) return data.credential;
@@ -117,8 +177,15 @@ export async function getCredentialById(id) {
     } catch (err) {}
   }
 
-  // Fallback to local DB if available
-  return nodes[0].stmts.getCred.get(id);
+  // 2. Fallback to checking ALL local DB nodes in order
+  for (let i = 0; i < NUM_NODES; i++) {
+    try {
+      const cred = nodes[i].stmts.getCred.get(id);
+      if (cred) return cred;
+    } catch (err) {}
+  }
+
+  return null;
 }
 
 export async function getSharesByCredentialId(id) {
@@ -126,25 +193,25 @@ export async function getSharesByCredentialId(id) {
 
   for (let i = 1; i <= NUM_NODES; i++) {
     let share = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const response = await fetch(`${getShardNodeUrl(i)}/shard/${id}`, { signal: AbortSignal.timeout(1200) });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.share) {
-            share = data.share;
-            break;
-          }
+
+    // Strict HTTP container network call (no local disk bypass)
+    try {
+      const response = await fetch(`${getShardNodeUrl(i)}/shard/${id}`, {
+        headers: getAuthHeaders(),
+        signal: AbortSignal.timeout(1200)
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.share) {
+          share = data.share;
         }
-      } catch (err) {
-        if (attempt === 0) await new Promise(r => setTimeout(r, 200));
       }
-    }
+    } catch (err) {}
 
     if (share) {
       allShares.push(share);
     } else {
-      console.warn(`Shard Node ${i} is OFFLINE/UNREACHABLE`);
+      console.warn(`Shard Node ${i} HTTP container unavailable or has no share for credential ${id}`);
     }
   }
 
@@ -156,11 +223,13 @@ export async function updateStatus(id, status) {
     try {
       await fetch(`${getShardNodeUrl(i)}/update-status`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ credentialId: id, status })
       });
     } catch (err) {}
-    nodes[i - 1].stmts.updateStatus.run(status, id);
+    try {
+      nodes[i - 1].stmts.updateStatus.run(status, id);
+    } catch (err) {}
   }
 }
 
@@ -169,11 +238,13 @@ export async function updateAnchorInfo(id, anchorTxId, status) {
     try {
       await fetch(`${getShardNodeUrl(i)}/update-status`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ credentialId: id, anchorTxId, status })
       });
     } catch (err) {}
-    nodes[i - 1].stmts.updateAnchor.run(anchorTxId, status, id);
+    try {
+      nodes[i - 1].stmts.updateAnchor.run(anchorTxId, status, id);
+    } catch (err) {}
   }
 }
 
@@ -182,7 +253,6 @@ export async function healShards(nodeId = null) {
   const targetNodes = nodeId ? [parseInt(nodeId, 10)] : [1, 2, 3, 4, 5];
 
   for (const nId of targetNodes) {
-    const nodeIndex = nId - 1;
     const nodeUrl = getShardNodeUrl(nId);
 
     try {
@@ -192,18 +262,30 @@ export async function healShards(nodeId = null) {
       continue;
     }
 
-    const { db } = nodes[nodeIndex];
-    const localShares = db.prepare(`
-      SELECT s.*, c.data_hash, c.algorithm, c.signature, c.prime_mod, c.required_shares, c.anchor_tx_id, c.status, c.issued_at 
-      FROM shard_references s 
-      JOIN credentials c ON s.credential_id = c.id 
-      WHERE s.share_index = ?
-    `).all(nId);
+    // Find local shares for nId across all local nodes
+    let localShares = [];
+    for (let i = 0; i < NUM_NODES; i++) {
+      try {
+        const rows = nodes[i].db.prepare(`
+          SELECT s.*, c.data_hash, c.algorithm, c.signature, c.prime_mod, c.required_shares, c.anchor_tx_id, c.status, c.issued_at 
+          FROM shard_references s 
+          JOIN credentials c ON s.credential_id = c.id 
+          WHERE s.share_index = ?
+        `).all(nId);
+        if (rows && rows.length > 0) {
+          localShares = rows;
+          break;
+        }
+      } catch (e) {}
+    }
 
     let healedCount = 0;
     for (const row of localShares) {
       try {
-        const checkRes = await fetch(`${nodeUrl}/shard/${row.credential_id}`, { signal: AbortSignal.timeout(1000) });
+        const checkRes = await fetch(`${nodeUrl}/shard/${row.credential_id}`, {
+          headers: getAuthHeaders(),
+          signal: AbortSignal.timeout(1000)
+        });
         if (checkRes.ok) {
           const checkData = await checkRes.json();
           if (!checkData.share) {
@@ -222,7 +304,7 @@ export async function healShards(nodeId = null) {
 
             const syncRes = await fetch(`${nodeUrl}/shard`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: getAuthHeaders(),
               body: JSON.stringify({ record, share })
             });
             if (syncRes.ok) healedCount++;
@@ -241,3 +323,30 @@ export async function healShards(nodeId = null) {
 
   return syncedEvents;
 }
+
+export async function getAllCredentials() {
+  const credMap = new Map();
+
+  for (let i = 0; i < NUM_NODES; i++) {
+    try {
+      const rows = nodes[i].db.prepare('SELECT * FROM credentials ORDER BY issued_at DESC').all();
+      for (const row of rows) {
+        if (!credMap.has(row.id)) {
+          credMap.set(row.id, row);
+        }
+      }
+    } catch (e) {}
+  }
+
+  const credentialsWithShards = [];
+  for (const cred of credMap.values()) {
+    const allShards = await getSharesByCredentialId(cred.id);
+    credentialsWithShards.push({
+      ...cred,
+      shards: allShards
+    });
+  }
+
+  return credentialsWithShards;
+}
+

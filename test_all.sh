@@ -31,7 +31,7 @@ API_KEY="${CRYPTO_SERVICE_API_KEY:-dev-secret-key-123}"
 PACKAGE_RES=$(curl -s -k -X POST \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"claim":{"subject":"did:scatterid:test-user","role":"Security Engineer"}}' \
+  -d "{\"claim\":{\"subject\":\"did:scatterid:test-user\",\"role\":\"Security Engineer\",\"test_time\":\"$(date -u +%s%N)\"}}" \
   https://localhost:5001/package)
 
 echo "  -> POST /package response:"
@@ -57,7 +57,7 @@ echo "[3/5] Testing Verification API (Express / HTTP:3000)..."
 
 ISSUE_RES=$(curl -s -X POST \
   -H "Content-Type: application/json" \
-  -d '{"claim":{"subject":"did:scatterid:test-user","role":"Security Engineer"}}' \
+  -d "{\"claim\":{\"subject\":\"did:scatterid:test-user\",\"role\":\"Security Engineer\",\"test_time\":\"$(date -u +%s%N)\"}}" \
   http://localhost:3000/issue)
 
 echo "  -> POST /issue response:"
