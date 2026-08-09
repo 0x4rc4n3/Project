@@ -44,10 +44,12 @@ if [ -n "$NET_NAME" ]; then
     docker network connect "$NET_NAME" peer0.verifier.scatterid.com 2>/dev/null || true
 fi
 
-# 6. Copy updated source code into containers
+# 6. Copy updated source code into containers and restart processes
 echo "[+] Synchronizing container application layers..."
 docker cp components/verification-api/src/. scatterid-verification:/app/src/ 2>/dev/null || true
 docker cp components/project-dashboard/server.js scatterid-dashboard:/app/server.js 2>/dev/null || true
+docker cp components/project-dashboard/public/. scatterid-dashboard:/app/public/ 2>/dev/null || true
+docker restart scatterid-verification scatterid-dashboard >/dev/null 2>&1 || true
 
 # 7. Perform live health probe
 echo "[+] Performing multi-point health check..."
