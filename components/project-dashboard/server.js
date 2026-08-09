@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import net from 'net';
 import { createHash } from 'crypto';
+import Database from 'better-sqlite3';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,6 +18,21 @@ const VERIFICATION_API_URL = process.env.VERIFICATION_API_URL || 'http://verific
 const CRYPTO_SERVICE_HOST = process.env.CRYPTO_SERVICE_HOST || 'crypto-service';
 const VERIFICATION_API_HOST = process.env.VERIFICATION_API_HOST || 'verification-api';
 
+const validContainers = [
+  'orderer.scatterid.com',
+  'peer0.issuer.scatterid.com',
+  'peer0.verifier.scatterid.com',
+  'scatterid-verification',
+  'scatterid-crypto',
+  'scatterid-vault',
+  'scatterid-dashboard',
+  'scatterid-shard-1',
+  'scatterid-shard-2',
+  'scatterid-shard-3',
+  'scatterid-shard-4',
+  'scatterid-shard-5'
+];
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -27,8 +43,9 @@ app.get('/demo', (req, res) => {
 // Proxy route for real backend verification
 app.post('/api/verify', async (req, res) => {
   const { credentialId } = req.body;
-  if (!credentialId) {
-    return res.status(400).json({ error: 'Missing credentialId' });
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!credentialId || !uuidRegex.test(credentialId)) {
+    return res.status(400).json({ error: 'Invalid parameter: credentialId must be a valid UUID v4' });
   }
 
   try {
@@ -41,7 +58,8 @@ app.post('/api/verify', async (req, res) => {
     const data = await response.json();
     res.status(response.status).json(data);
   } catch (err) {
-    res.status(500).json({ error: `Verification API unreachable: ${err.message}` });
+    console.error('Failed to proxy verify route:', err.stack || err.message);
+    res.status(500).json({ error: 'Verification API is unreachable' });
   }
 });
 
@@ -133,7 +151,10 @@ app.post('/api/shards/toggle-container', async (req, res) => {
     'scatterid-shard-5': 'scatterid-shard-5',
   };
 
-  const targetContainer = containerMap[nodeName] || nodeName;
+  const targetContainer = containerMap[nodeName];
+  if (!targetContainer || !validContainers.includes(targetContainer)) {
+    return res.status(400).json({ success: false, error: 'Invalid parameter: nodeName is not a permitted container node' });
+  }
 
   const cmd = action === 'stop' ? `docker stop -t 1 ${targetContainer}` : `docker start ${targetContainer}`;
   const result = await runCmd(cmd);
@@ -187,7 +208,8 @@ app.get('/api/credentials', async (req, res) => {
     const data = await response.json();
     res.json(data);
   } catch (err) {
-    res.json({ success: false, error: err.message, credentials: [] });
+    console.error('Failed to proxy credentials list query:', err.stack || err.message);
+    res.json({ success: false, error: 'Verification API unreachable', credentials: [] });
   }
 });
 
@@ -210,13 +232,19 @@ app.post('/api/issue', async (req, res) => {
     const data = await response.json();
     res.status(response.status).json(data);
   } catch (err) {
-    res.status(500).json({ error: `Verification API unreachable: ${err.message}` });
+    console.error('Failed to proxy issue route:', err.stack || err.message);
+    res.status(500).json({ error: 'Verification API unreachable' });
   }
 });
 
 // API: Get Single Credential Detail by ID
 app.get('/api/credentials/:id', (req, res) => {
   try {
+    const { id } = req.params;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!id || !uuidRegex.test(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid parameter: id must be a valid UUID v4' });
+    }
     const candidateDirs = [
       process.env.DB_DIR || '/app/data',
       '/app/data',
@@ -239,7 +267,7 @@ app.get('/api/credentials/:id', (req, res) => {
       if (fsSync.existsSync(nodePath)) {
         try {
           const nDb = new Database(nodePath, { readonly: true });
-          cred = nDb.prepare('SELECT * FROM credentials WHERE id = ?').get(req.params.id);
+          cred = nDb.prepare('SELECT * FROM credentials WHERE id = ?').get(id);
           nDb.close();
           if (cred) break;
         } catch (e) {}
@@ -271,7 +299,8 @@ app.get('/api/credentials/:id', (req, res) => {
       }
     });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('Failed to query local database fallback for credential:', err.stack || err.message);
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
   }
 });
 
@@ -463,27 +492,14 @@ app.get('/api/shards/integrity', async (req, res) => {
 
     res.json({ success: true, baseDir: foundBaseDir, nodes: nodeReports });
   } catch (err) {
-    res.json({ success: false, error: err.message, nodes: [] });
+    console.error('Failed to run shards integrity inspection:', err.stack || err.message);
+    res.json({ success: false, error: 'Internal Server Error', nodes: [] });
   }
 });
 
 // API: Docker Logs
 app.get('/api/logs/:container', async (req, res) => {
   const container = req.params.container;
-  const validContainers = [
-    'orderer.scatterid.com',
-    'peer0.issuer.scatterid.com',
-    'peer0.verifier.scatterid.com',
-    'scatterid-verification',
-    'scatterid-crypto',
-    'scatterid-vault',
-    'scatterid-dashboard',
-    'scatterid-shard-1',
-    'scatterid-shard-2',
-    'scatterid-shard-3',
-    'scatterid-shard-4',
-    'scatterid-shard-5'
-  ];
 
   if (!validContainers.includes(container)) {
     return res.status(400).json({ success: false, error: 'Invalid container name' });
