@@ -72,17 +72,47 @@ def rotate_route():
         return jsonify({"error": str(e), "code": "ROTATION_FAILED"}), 500
 
 
+import subprocess
+
+def ensure_certificates(cert_path, key_path, base_dir):
+    if os.path.exists(cert_path) and os.path.exists(key_path):
+        return cert_path, key_path
+
+    certs_dir = os.path.dirname(cert_path)
+    os.makedirs(certs_dir, exist_ok=True)
+    script_path = os.path.abspath(os.path.join(base_dir, '../certs/generate_certs.sh'))
+
+    if os.path.exists(script_path):
+        print(f"Generating TLS certificates via {script_path}...")
+        try:
+            subprocess.run(['bash', script_path], check=True)
+            if os.path.exists(cert_path) and os.path.exists(key_path):
+                return cert_path, key_path
+        except Exception as err:
+            print(f"Warning: Script cert generation failed ({err}), falling back to direct self-signed cert generation.")
+
+    print("Generating self-signed TLS fallback certificates...")
+    try:
+        subprocess.run([
+            'openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
+            '-out', cert_path, '-keyout', key_path, '-days', '365',
+            '-subj', '/CN=localhost/O=ScatterID'
+        ], check=True)
+    except Exception as err:
+        raise FileNotFoundError(
+            f"TLS Certificates not found at {cert_path} or {key_path} and automatic generation failed: {err}"
+        )
+
+    return cert_path, key_path
+
+
 if __name__ == "__main__":
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     PROJECT_ROOT = os.path.dirname(BASE_DIR)
-    CERT_PATH = '/app/certs/crypto-service.crt' if os.path.exists('/app/certs/crypto-service.crt') else os.path.join(BASE_DIR, '../certs/crypto-service.crt')
-    KEY_PATH = '/app/certs/crypto-service.key' if os.path.exists('/app/certs/crypto-service.key') else os.path.join(BASE_DIR, '../certs/crypto-service.key')
+    TARGET_CERT = '/app/certs/crypto-service.crt' if os.path.exists('/app/certs') else os.path.join(BASE_DIR, '../certs/crypto-service.crt')
+    TARGET_KEY = '/app/certs/crypto-service.key' if os.path.exists('/app/certs') else os.path.join(BASE_DIR, '../certs/crypto-service.key')
 
-    if not os.path.exists(CERT_PATH) or not os.path.exists(KEY_PATH):
-        raise FileNotFoundError(
-            f"TLS Certificates not found at {CERT_PATH} or {KEY_PATH}. "
-            "Please run certs/generate_certs.sh first."
-        )
+    CERT_PATH, KEY_PATH = ensure_certificates(TARGET_CERT, TARGET_KEY, BASE_DIR)
 
     # Run with HTTPS / SSL context
     app.run(host='0.0.0.0', port=5001, debug=True, ssl_context=(CERT_PATH, KEY_PATH))
