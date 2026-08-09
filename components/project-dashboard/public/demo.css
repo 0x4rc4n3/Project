@@ -98,6 +98,62 @@ body {
   gap: 4px;
 }
 
+/* Prominent Switch Bar for Interactive Sandbox */
+.prominent-switch-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 24px;
+  background: rgba(16, 185, 129, 0.04);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 14px;
+  margin-bottom: 28px;
+  backdrop-filter: blur(12px);
+}
+
+.switch-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.switch-tag {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent-green);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.switch-sub {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.view-toggle-container.prominent {
+  background: rgba(13, 17, 25, 0.95);
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 20px rgba(16, 185, 129, 0.15);
+  gap: 8px;
+}
+
+.view-toggle-container.prominent .toggle-btn {
+  padding: 12px 28px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border-radius: 8px;
+}
+
+.view-toggle-container.prominent .toggle-btn.active {
+  background: #10b981;
+  color: #07090e;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+}
+
 .toggle-btn {
   background: transparent;
   border: none;
@@ -124,9 +180,10 @@ body {
 }
 
 .toggle-btn.active {
-  background: var(--accent-purple);
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+  background: var(--accent-green);
+  color: #07090e;
+  font-weight: 700;
+  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.35);
 }
 
 .toggle-btn.active .icon {

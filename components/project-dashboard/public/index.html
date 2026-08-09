@@ -43,7 +43,6 @@
         <p class="subtitle">Post-Quantum Sharded Credential Verification Architecture</p>
       </div>
       <div class="header-right">
-        <a href="/demo" target="_blank" class="btn btn-outline" style="margin-right: 8px;">Standalone Sandbox ↗</a>
         <button class="btn btn-outline" id="refresh-all-btn">Refresh Data</button>
       </div>
     </header>
@@ -335,9 +334,16 @@
 
       <!-- Tab Content: Interactive Sandbox Demo (MVP Theme) -->
       <section id="tab-demo" class="tab-pane">
-        <div class="view-toggle-container mb-6" style="justify-content: center; margin-bottom: 24px;">
-          <button class="toggle-btn active" id="btn-view-client-tab" data-view="client">Client Experience</button>
-          <button class="toggle-btn" id="btn-view-telemetry-tab" data-view="telemetry">Deep-Tech Telemetry</button>
+        <!-- Prominent View Switch Banner -->
+        <div class="prominent-switch-bar mb-6">
+          <div class="switch-heading">
+            <span class="switch-tag">Interactive Sandbox</span>
+            <span class="switch-sub">Select View Mode:</span>
+          </div>
+          <div class="view-toggle-container prominent">
+            <button class="toggle-btn active" id="btn-view-client-tab" data-view="client">Client Experience Portal</button>
+            <button class="toggle-btn" id="btn-view-telemetry-tab" data-view="telemetry">Deep-Tech Telemetry Matrix</button>
+          </div>
         </div>
 
         <!-- Embedded View A: Client Experience -->
